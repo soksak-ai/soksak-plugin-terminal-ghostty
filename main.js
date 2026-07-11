@@ -2979,6 +2979,265 @@ For tests, pass a Ghostty instance directly:
   return R;
 }
 
+// ../../kits/soksak-kit-terminal-common/src/ime-webkit.ts
+function isHangul(text) {
+  if (!text) return false;
+  const cp = text.codePointAt(0) ?? 0;
+  return cp >= 4352 && cp <= 4607 || // Hangul Jamo
+  cp >= 12592 && cp <= 12687 || // Hangul Compatibility Jamo
+  cp >= 44032 && cp <= 55215 || // Hangul Syllables
+  cp >= 43360 && cp <= 43391 || // Hangul Jamo Extended-A
+  cp >= 55216 && cp <= 55295;
+}
+function isHangulJamo(text) {
+  if (!text) return false;
+  const cp = text.codePointAt(0) ?? 0;
+  return cp >= 4352 && cp <= 4607 || // Hangul Jamo (conjoining)
+  cp >= 12592 && cp <= 12687 || // Hangul Compatibility Jamo
+  cp >= 43360 && cp <= 43391 || // Hangul Jamo Extended-A
+  cp >= 55216 && cp <= 55295;
+}
+var WebkitImeAddon = class {
+  constructor(_opts) {
+    this._opts = _opts;
+  }
+  _opts;
+  _term;
+  _preedit;
+  _onRender;
+  _removers = [];
+  // Non-standard (insertReplacementText) composition state. The standard path
+  // never sets these — it is fully owned by xterm.
+  _composing = false;
+  _pending = "";
+  // GUARD 2 (resyllabification echo dedup): the single Hangul char seen on the
+  // most recent IME beforeinput. shouldSkip drops the matching onData once.
+  _expectEcho = "";
+  // GUARD 3 (post-flush delayed-commit): the syllable just flushed from a
+  // keydown terminator. _onInput consumes the matching delayed commit once.
+  _justFlushed = "";
+  // True only while _flush() runs inside _onKeydown, so the flush knows it must
+  // arm GUARD 3 (a standard-path flush from _onInput must not).
+  _flushingFromKeydown = false;
+  activate(terminal) {
+    const ta = terminal.textarea;
+    if (!ta) return;
+    this._term = terminal;
+    const preedit = document.createElement("div");
+    preedit.style.position = "absolute";
+    preedit.style.pointerEvents = "none";
+    preedit.style.whiteSpace = "pre";
+    preedit.style.zIndex = "5";
+    preedit.style.color = "#fff";
+    preedit.style.background = "rgb(47, 47, 47)";
+    preedit.style.textDecoration = "underline";
+    preedit.style.display = "none";
+    (terminal.element ?? ta.parentElement ?? document.body).appendChild(preedit);
+    this._preedit = preedit;
+    const add = (type, fn) => {
+      ta.addEventListener(type, fn, true);
+      this._removers.push(() => ta.removeEventListener(type, fn, true));
+    };
+    add("input", this._onInput);
+    add("keydown", this._onKeydown);
+    add("beforeinput", this._onBeforeinput);
+    terminal.attachCustomKeyEventHandler(this._customKey);
+    this._onRender = terminal.onRender(() => {
+      if (this._composing && this._pending) this._show(this._pending);
+    });
+  }
+  dispose() {
+    for (const off of this._removers) off();
+    this._removers = [];
+    this._onRender?.dispose();
+    this._onRender = void 0;
+    this._preedit?.remove();
+    this._preedit = void 0;
+    this._term?.attachCustomKeyEventHandler(() => true);
+    this._composing = false;
+    this._pending = "";
+    this._expectEcho = "";
+    this._justFlushed = "";
+    this._flushingFromKeydown = false;
+  }
+  /** Call from terminal.onData — true if the data is leaked jamo to drop. */
+  shouldSkip(data) {
+    if ((data === "\x7F" || data === "\b") && this._pending !== "") return true;
+    if (data.length === 1 && isHangulJamo(data)) return true;
+    if (data.length === 1 && isHangul(data) && data === this._expectEcho) {
+      this._expectEcho = "";
+      return true;
+    }
+    return this._composing && data.length === 1 && isHangul(data);
+  }
+  /**
+   * Commit any pending non-standard syllable immediately. Call this from
+   * terminal.onData BEFORE forwarding a non-skipped chunk to the pty so the
+   * composed syllable is ordered ahead of the following external input.
+   *
+   * GUARD 7: WKWebView routes a non-Hangul key pressed mid-composition (`.`,
+   * `?`, `!`, punctuation, ASCII, paste) to the pty via xterm's textarea-poll
+   * onData, which fires BEFORE the addon's keydown flush — so the char landed
+   * before the pending syllable ("자" + "." → ".자", "하" + "?" → "?하"). Flushing
+   * here, on the same onData path that writes the char, guarantees correct order.
+   * No-op when nothing is pending.
+   */
+  flushPending() {
+    this._flush();
+  }
+  _customKey = (ev) => {
+    if (ev.type === "keydown" && (ev.keyCode === 229 || ev.isComposing)) {
+      return false;
+    }
+    if (ev.type === "keydown" && this._pending !== "") {
+      if (ev.key === "Enter" || ev.key === "Tab" || ev.key === "Escape") {
+        return false;
+      }
+      if (ev.ctrlKey && !ev.metaKey && !ev.altKey && ev.key.length === 1 && ev.key >= "a" && ev.key <= "z") {
+        return false;
+      }
+    }
+    if (ev.type === "keydown" && ev.keyCode === 8 && this._pending !== "") {
+      return false;
+    }
+    return true;
+  };
+  _onKeydown = (e3) => {
+    this._opts.onDebug?.(`KEY key=${JSON.stringify(e3.key)} code=${e3.keyCode} composing=${this._composing} isComposing=${e3.isComposing}`);
+    let emit = null;
+    if (this._composing) {
+      if (e3.key === "Enter") emit = "\r";
+      else if (e3.key === "Tab") emit = "	";
+      else if (e3.key === "Escape") emit = "\x1B";
+      else if (e3.ctrlKey && !e3.metaKey && !e3.altKey && e3.key.length === 1 && e3.key >= "a" && e3.key <= "z") {
+        emit = String.fromCharCode(e3.key.charCodeAt(0) - 96);
+      }
+    }
+    if (emit !== null) {
+      this._flushingFromKeydown = true;
+      this._flush();
+      this._flushingFromKeydown = false;
+      this._opts.onData(emit);
+      e3.preventDefault();
+      e3.stopImmediatePropagation();
+      return;
+    }
+    if (e3.keyCode === 229 || e3.isComposing) {
+      this._justFlushed = "";
+      e3.stopImmediatePropagation();
+      return;
+    }
+    if (e3.key === "Backspace" && this._composing) {
+      this._composing = false;
+      this._pending = "";
+      this._hide();
+      e3.preventDefault();
+      e3.stopImmediatePropagation();
+      return;
+    }
+    if (e3.key === "Shift" || e3.key === "Control" || e3.key === "Alt" || e3.key === "Meta" || e3.key === "CapsLock" || e3.key === "AltGraph") {
+      return;
+    }
+    if (this._composing) {
+      this._flushingFromKeydown = true;
+      this._flush();
+      this._flushingFromKeydown = false;
+    }
+  };
+  _onBeforeinput = (e3) => {
+    this._opts.onDebug?.(
+      `BEFOREINPUT type=${e3.inputType} data=${JSON.stringify(e3.data)} composing=${this._composing} pending=${JSON.stringify(this._pending)} expectEcho=${JSON.stringify(this._expectEcho)}`
+    );
+    if (e3.data !== null && e3.data.length === 1 && isHangul(e3.data) && (e3.inputType === "insertText" || e3.inputType === "insertReplacementText")) {
+      this._expectEcho = e3.data;
+    } else {
+      this._expectEcho = "";
+    }
+  };
+  _onInput = (e3) => {
+    this._opts.onDebug?.(
+      `INPUT type=${e3.inputType} data=${JSON.stringify(e3.data)} composing=${this._composing} pending=${JSON.stringify(this._pending)}`
+    );
+    if (e3.data !== null && e3.data === this._justFlushed && (e3.inputType === "insertText" || e3.inputType === "insertReplacementText")) {
+      this._justFlushed = "";
+      e3.stopImmediatePropagation();
+      e3.preventDefault();
+      return;
+    }
+    if (this._justFlushed) this._justFlushed = "";
+    if (e3.data && e3.inputType === "insertReplacementText") {
+      this._composing = true;
+      this._pending = e3.data;
+      this._show(e3.data);
+      e3.stopImmediatePropagation();
+      e3.preventDefault();
+      return;
+    }
+    if (e3.data && e3.inputType === "insertText" && isHangul(e3.data)) {
+      if (this._composing) this._flush();
+      this._composing = true;
+      this._pending = e3.data;
+      this._show(e3.data);
+      e3.stopImmediatePropagation();
+      e3.preventDefault();
+      return;
+    }
+    if (this._composing && (e3.inputType === "deleteContentBackward" || e3.inputType === "insertReplacementText" && !e3.data)) {
+      this._composing = false;
+      this._pending = "";
+      this._hide();
+      e3.stopImmediatePropagation();
+      e3.preventDefault();
+      return;
+    }
+    if (this._composing) this._flush();
+  };
+  _place() {
+    const term = this._term;
+    const preedit = this._preedit;
+    if (!term || !preedit) return;
+    const core = term._core;
+    const cell = core?._renderService?.dimensions?.css?.cell;
+    const el = term.element;
+    const cw = cell?.width ?? (el ? el.clientWidth / term.cols : 9);
+    const ch = cell?.height ?? (el ? el.clientHeight / term.rows : 17);
+    const buf = term.buffer.active;
+    const col = Math.min(buf.cursorX, term.cols - 1);
+    const row = buf.cursorY;
+    preedit.style.left = `${col * cw}px`;
+    preedit.style.top = `${row * ch}px`;
+    preedit.style.height = `${ch}px`;
+    preedit.style.lineHeight = `${ch}px`;
+    preedit.style.fontFamily = term.options.fontFamily ?? "monospace";
+    preedit.style.fontSize = `${term.options.fontSize ?? 15}px`;
+  }
+  _show(text) {
+    if (!this._preedit) return;
+    this._preedit.textContent = text;
+    this._place();
+    this._preedit.style.display = "block";
+  }
+  _hide() {
+    if (!this._preedit) return;
+    this._preedit.textContent = "";
+    this._preedit.style.display = "none";
+  }
+  _flush() {
+    if (!this._composing) return;
+    const text = this._pending;
+    this._composing = false;
+    this._pending = "";
+    this._hide();
+    if (text) {
+      this._opts.onDebug?.(
+        `FLUSH ${JSON.stringify(text)} fromKeydown=${this._flushingFromKeydown}`
+      );
+      if (this._flushingFromKeydown) this._justFlushed = text;
+      this._opts.onData(text);
+    }
+  }
+};
+
 // src/plugin-entry.ts
 var FLOW_ACK_SIZE = 5e3;
 var instances = /* @__PURE__ */ new Map();
@@ -3024,23 +3283,31 @@ function mountTerminal(container, ctx, vctx) {
       return;
     }
     if (disposed) return;
-    const css = getComputedStyle(document.documentElement);
-    const tok = (name) => css.getPropertyValue(name).trim();
-    const term = new IA({
-      fontFamily: String(app.settings.get("appFontFamily") ?? "Menlo, monospace"),
-      fontSize: Number(app.settings.get("appFontSize") ?? 13),
-      theme: {
+    const themeNow = () => {
+      const css = getComputedStyle(document.documentElement);
+      const tok = (name) => css.getPropertyValue(name).trim();
+      return {
         background: tok("--bg") || "#111",
         foreground: tok("--fg") || "#eee",
         cursor: tok("--acc") || "#3b82f6",
         selectionBackground: tok("--accbg") || "#3b82f655"
-      },
+      };
+    };
+    const term = new IA({
+      fontFamily: String(app.settings.get("appFontFamily") ?? "Menlo, monospace"),
+      fontSize: Number(app.settings.get("appFontSize") ?? 13),
+      theme: themeNow(),
       scrollback: 5e3
     });
     const fit = new DA();
     term.loadAddon(fit);
     term.open(cell);
     fit.fit();
+    const mo = new MutationObserver(() => {
+      term.renderer?.setTheme(themeNow());
+    });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-theme-mode", "style", "class"] });
+    subs.push({ dispose: () => mo.disconnect() });
     const pty = app.pty;
     const restoredCwd = vctx.restore?.cwd ?? void 0;
     const ptyId = await pty.spawn({
@@ -3080,6 +3347,9 @@ function mountTerminal(container, ctx, vctx) {
       })
     );
     subs.push(term.onData((data) => void pty.write(ptyId, data)));
+    const ime = new WebkitImeAddon({ onData: (data) => void pty.write(ptyId, data) });
+    term.loadAddon(ime);
+    subs.push({ dispose: () => ime.dispose() });
     const ro = new ResizeObserver(() => {
       fit.fit();
     });

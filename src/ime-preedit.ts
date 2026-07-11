@@ -12,6 +12,7 @@
 import type { Terminal } from "ghostty-web";
 
 export interface PreeditHandle {
+  prepareFocusTransfer(): void;
   dispose(): void;
 }
 
@@ -19,6 +20,40 @@ interface RendererMetrics {
   width: number;
   height: number;
   baseline: number;
+}
+
+/** Standard composition state with an idempotent explicit-commit boundary. */
+export class CompositionCommitState {
+  private composing = false;
+  private data = "";
+
+  start(): void {
+    this.composing = true;
+    this.data = "";
+  }
+
+  update(data: string): void {
+    if (this.composing) this.data = data;
+  }
+
+  end(): void {
+    this.composing = false;
+    this.data = "";
+  }
+
+  pending(): string {
+    return this.composing ? this.data : "";
+  }
+
+  commit(emit: (data: string) => void): boolean {
+    const data = this.pending();
+    if (!data) return false;
+    // Clear first: emit dispatches compositionend synchronously and a second
+    // focus-transfer request in the same native click must remain a no-op.
+    this.end();
+    emit(data);
+    return true;
+  }
 }
 
 // 렌더러가 draw 에 실제 사용하는 필드들 — term.options 가 아니라 이것이 단일 진실.
@@ -109,16 +144,13 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
     };
   };
 
-  let composing = false;
-  let lastData = "";
+  const composition = new CompositionCommitState();
   const onStart = (): void => {
-    composing = true;
-    lastData = "";
+    composition.start();
   };
   const onUpdate = (e: Event): void => {
-    if (!composing) return;
     const data = (e as CompositionEvent).data ?? "";
-    lastData = data;
+    composition.update(data);
     if (!data) {
       overlay.style.display = "none";
       return;
@@ -126,26 +158,29 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
     draw(data);
   };
   const onEnd = (): void => {
-    composing = false;
-    lastData = "";
+    composition.end();
     overlay.style.display = "none";
   };
   // 조합 미완료 중 포커스 아웃: WebKit 이 조합을 커밋하면 compositionend 가 와서 위 onEnd 로
   // 정리된다. 커밋하지 않는 경로(윈도 전환 등)에서는 compositionend 가 없어 프리뷰가 비포커스
   // 터미널 위에 유령으로 남는다 — 프리뷰만 숨기고 조합 상태는 건드리지 않는다(소유권은 IME).
   // 복귀 후 조합이 살아 있으면 focusin/다음 compositionupdate 가 되살린다.
-  const onFocusOut = (): void => {
+  const prepareFocusTransfer = (): void => {
     overlay.style.display = "none";
     // WebKit 은 조합 중 blur 시 compositionend 를 발화하지 않는다(WebKit #164369) → 조합 텍스트
     // 유실. 포커스가 떠나기 전 마지막 조합 데이터로 compositionend 를 합성 발화해 정상 커밋
     // 경로(ghostty-web handleCompositionEnd → onData → pty)를 태운다. WebKit 이 이미 커밋했으면
     // (실 compositionend 발화 → onEnd 로 composing=false) 이 가드가 false 라 이중 커밋을 막는다.
-    if (composing && lastData) {
-      target.dispatchEvent(new CompositionEvent("compositionend", { data: lastData, bubbles: true }));
-    }
+    composition.commit((data) =>
+      target.dispatchEvent(
+        new CompositionEvent("compositionend", { data, bubbles: true }),
+      ),
+    );
   };
+  const onFocusOut = prepareFocusTransfer;
   const onFocusIn = (): void => {
-    if (composing && lastData) draw(lastData);
+    const data = composition.pending();
+    if (data) draw(data);
   };
   // 리스너는 이 플러그인 소유 DOM(target=term.element)에만 건다 — 공유 webview(document) 오염 금지(R7).
   target.addEventListener("compositionstart", onStart, true);
@@ -155,6 +190,7 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
   target.addEventListener("focusin", onFocusIn, true);
 
   return {
+    prepareFocusTransfer,
     dispose() {
       target.removeEventListener("compositionstart", onStart, true);
       target.removeEventListener("compositionupdate", onUpdate, true);

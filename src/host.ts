@@ -24,6 +24,12 @@ export interface PluginViewContext {
 export interface PluginViewProvider {
   mount(container: HTMLElement, ctx: PluginViewContext): void;
   unmount?(container: HTMLElement): void;
+  prepareFocusTransfer?(container: HTMLElement, ctx: PluginViewContext): void;
+  focus?(
+    container: HTMLElement,
+    ctx: PluginViewContext,
+    request: { signal: AbortSignal },
+  ): void;
 }
 
 export interface ParamSpec {

@@ -2980,6 +2980,31 @@ For tests, pass a Ghostty instance directly:
 }
 
 // src/ime-preedit.ts
+var CompositionCommitState = class {
+  composing = false;
+  data = "";
+  start() {
+    this.composing = true;
+    this.data = "";
+  }
+  update(data) {
+    if (this.composing) this.data = data;
+  }
+  end() {
+    this.composing = false;
+    this.data = "";
+  }
+  pending() {
+    return this.composing ? this.data : "";
+  }
+  commit(emit) {
+    const data = this.pending();
+    if (!data) return false;
+    this.end();
+    emit(data);
+    return true;
+  }
+};
 function attachGhosttyPreedit(term, host) {
   const target = term.element ?? host;
   const focusables = /* @__PURE__ */ new Set([target]);
@@ -3044,16 +3069,13 @@ function attachGhosttyPreedit(term, host) {
       advance
     };
   };
-  let composing = false;
-  let lastData = "";
+  const composition = new CompositionCommitState();
   const onStart = () => {
-    composing = true;
-    lastData = "";
+    composition.start();
   };
   const onUpdate = (e3) => {
-    if (!composing) return;
     const data = e3.data ?? "";
-    lastData = data;
+    composition.update(data);
     if (!data) {
       overlay.style.display = "none";
       return;
@@ -3061,18 +3083,21 @@ function attachGhosttyPreedit(term, host) {
     draw(data);
   };
   const onEnd = () => {
-    composing = false;
-    lastData = "";
+    composition.end();
     overlay.style.display = "none";
   };
-  const onFocusOut = () => {
+  const prepareFocusTransfer = () => {
     overlay.style.display = "none";
-    if (composing && lastData) {
-      target.dispatchEvent(new CompositionEvent("compositionend", { data: lastData, bubbles: true }));
-    }
+    composition.commit(
+      (data) => target.dispatchEvent(
+        new CompositionEvent("compositionend", { data, bubbles: true })
+      )
+    );
   };
+  const onFocusOut = prepareFocusTransfer;
   const onFocusIn = () => {
-    if (composing && lastData) draw(lastData);
+    const data = composition.pending();
+    if (data) draw(data);
   };
   target.addEventListener("compositionstart", onStart, true);
   target.addEventListener("compositionupdate", onUpdate, true);
@@ -3080,6 +3105,7 @@ function attachGhosttyPreedit(term, host) {
   target.addEventListener("focusout", onFocusOut, true);
   target.addEventListener("focusin", onFocusIn, true);
   return {
+    prepareFocusTransfer,
     dispose() {
       target.removeEventListener("compositionstart", onStart, true);
       target.removeEventListener("compositionupdate", onUpdate, true);
@@ -3147,6 +3173,17 @@ function attachFocusCursor(term, host) {
   };
 }
 
+// src/focus-contract.ts
+function openWithoutImplicitFocus(terminal, container) {
+  terminal.focus = () => {
+  };
+  try {
+    terminal.open(container);
+  } finally {
+    terminal.focus = () => terminal.element?.focus();
+  }
+}
+
 // src/plugin-entry.ts
 var FLOW_ACK_SIZE = 5e3;
 var instances = /* @__PURE__ */ new Map();
@@ -3179,12 +3216,15 @@ function mountTerminal(container, ctx, vctx) {
   vctx.setStatus({ code: "connecting" });
   const inst = {
     ptyId: null,
+    ready: false,
     dispose: () => {
       if (disposed) return;
       disposed = true;
       for (const s of subs.splice(0)) s.dispose();
       if (inst.ptyId != null) void app.pty?.close(inst.ptyId);
       instances.delete(viewId);
+      inst.ready = false;
+      inst.focusRequest = void 0;
       cell.remove();
     }
   };
@@ -3215,7 +3255,17 @@ function mountTerminal(container, ctx, vctx) {
     });
     const fit = new DA();
     term.loadAddon(fit);
-    term.open(cell);
+    openWithoutImplicitFocus(term, cell);
+    inst.term = term;
+    if (term.element) {
+      const el = term.element;
+      const rawElFocus = el.focus.bind(el);
+      el.focus = ((...args) => {
+        const stack = (new Error().stack ?? "").split("\n").slice(1, 6).map((s) => s.trim().replace(/^at /, "")).join(" <- ");
+        traceLine(`[${viewId}] element.focus() BY: ${stack}`);
+        return rawElFocus(...args);
+      });
+    }
     {
       const r2 = term.renderer;
       if (r2?.measureFont && r2.remeasureFont) {
@@ -3255,7 +3305,6 @@ function mountTerminal(container, ctx, vctx) {
       return;
     }
     inst.ptyId = ptyId;
-    inst.term = term;
     let pendingAck = 0;
     subs.push(
       pty.onData(ptyId, (bytes) => {
@@ -3310,6 +3359,7 @@ function mountTerminal(container, ctx, vctx) {
     subs.push({ dispose: () => traceTarget.removeEventListener("focusout", foTrace, true) });
     subs.push({ dispose: () => traceTarget.removeEventListener("focusin", fiTrace, true) });
     const preedit = attachGhosttyPreedit(term, cell);
+    inst.preedit = preedit;
     subs.push({ dispose: () => preedit.dispose() });
     const focusCursor = attachFocusCursor(term, cell);
     subs.push({ dispose: () => focusCursor.dispose() });
@@ -3344,8 +3394,13 @@ function mountTerminal(container, ctx, vctx) {
       })
     );
     if (vctx.command) void pty.write(ptyId, `${vctx.command}\r`);
+    inst.ready = true;
+    const queuedFocus = inst.focusRequest;
+    inst.focusRequest = void 0;
+    if (queuedFocus && !queuedFocus.signal.aborted && !cell.contains(document.activeElement)) {
+      term.focus();
+    }
     vctx.setStatus(null);
-    term.focus();
   })();
   return inst.dispose;
 }
@@ -3362,6 +3417,19 @@ var plugin_entry_default = {
           unmount(container) {
             cleanups.get(container)?.();
             cleanups.delete(container);
+          },
+          prepareFocusTransfer(_container, vctx) {
+            if (!vctx.viewId) return;
+            instances.get(vctx.viewId)?.preedit?.prepareFocusTransfer();
+          },
+          focus(_container, vctx, request) {
+            if (!vctx.viewId || request.signal.aborted) return;
+            const inst = instances.get(vctx.viewId);
+            if (!inst) return;
+            inst.focusRequest = request;
+            if (!inst.term || !inst.ready) return;
+            inst.focusRequest = void 0;
+            inst.term.focus();
           }
         })
       );
@@ -3401,7 +3469,7 @@ var plugin_entry_default = {
       ctx.subscriptions.push(
         app.commands.register("ime.probe", {
           description: "M0: synthetic composition probe - draws the preedit and returns geometry diff vs cursor (temporary). phase=show keeps the preview on screen for capture; phase=hide ends it.",
-          params: { paneId: { type: "string" }, text: { type: "string" }, phase: { type: "string" } },
+          params: { paneId: { type: "string" }, text: { type: "string" }, phase: { type: "string" }, selector: { type: "string" } },
           message: () => "\uD504\uB9AC\uC5D0\uB527 \uAE30\uD558 \uC2A4\uB0C5\uC0F7\uC785\uB2C8\uB2E4.",
           handler: (p) => {
             const want = typeof p.paneId === "string" ? p.paneId : null;
@@ -3414,6 +3482,18 @@ var plugin_entry_default = {
             if (phase === "hide") {
               target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
               return { ok: true, phase };
+            }
+            if (phase === "clickother") {
+              const sel = String(p.selector ?? ".xterm-helper-textarea");
+              const other = document.querySelector(sel);
+              if (!other) return { ok: false, error: `no element: ${sel}` };
+              const r2 = other.getBoundingClientRect();
+              const cx = r2.left + Math.max(1, r2.width / 2), cy = r2.top + Math.max(1, r2.height / 2);
+              const before = document.activeElement === target || target.contains(document.activeElement);
+              for (const type of ["mousedown", "mouseup", "click"]) {
+                other.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: cx, clientY: cy }));
+              }
+              return { ok: true, phase, selector: sel, terminalFocusedBefore: before };
             }
             if (phase === "clickcanvas") {
               const canvas = t.element?.querySelector("canvas");

@@ -66,29 +66,14 @@ export function attachFocusCursor(term: Terminal, host: HTMLElement): FocusCurso
     note(`focusout <- ${(e.target as HTMLElement)?.tagName}`);
     repaintCursor();
   };
-  // WKWebView 는 네이티브 윈도가 키를 잃어도 DOM activeElement 를 유지할 수 있다 —
-  // window blur/focus 도 함께 본다.
-  const onWinBlur = (): void => {
-    focused = false;
-    note("window blur");
-    repaintCursor();
-  };
-  const onWinFocus = (): void => {
-    focused = host.contains(document.activeElement);
-    note(`window focus -> ${focused}`);
-    repaintCursor();
-  };
+  // 리스너는 이 플러그인 소유 host 에만 건다 — 공유 window/document 오염 금지(R7).
   host.addEventListener("focusin", onFocusIn);
   host.addEventListener("focusout", onFocusOut);
-  window.addEventListener("blur", onWinBlur);
-  window.addEventListener("focus", onWinFocus);
 
   return {
     dispose() {
       host.removeEventListener("focusin", onFocusIn);
       host.removeEventListener("focusout", onFocusOut);
-      window.removeEventListener("blur", onWinBlur);
-      window.removeEventListener("focus", onWinFocus);
       delete (r as { renderCursor?: unknown }).renderCursor; // 프로토타입 메서드로 복원
     },
     isFocused: () => focused,

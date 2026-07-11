@@ -191,6 +191,28 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
       subs.push({ dispose: () => traceTarget.removeEventListener(ev, h, true) });
     }
     subs.push(term.onData((d) => { IME_TRACE.push(`onData ${JSON.stringify(d)}`); if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120); }));
+    // 포커스/포인터 흐름 지문(조합 중 클릭 삼킴 진단) — 대상 요소 식별자 포함.
+    const nodeDesc = (n: EventTarget | null): string => {
+      const el = n as HTMLElement | null;
+      if (!el || !el.tagName) return String(n);
+      const dn = el.getAttribute?.("data-node");
+      const cls = el.className ? "." + String(el.className).split(" ").slice(0, 1).join("") : "";
+      return `${el.tagName}${dn ? "[" + dn + "]" : ""}${cls}`;
+    };
+    const push = (line: string): void => { IME_TRACE.push(line); if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120); };
+    const foTrace = (e: Event) => push(`focusout -> related=${nodeDesc((e as FocusEvent).relatedTarget)}`);
+    const fiTrace = (e: Event) => push(`focusin <- ${nodeDesc(e.target)}`);
+    traceTarget.addEventListener("focusout", foTrace, true);
+    traceTarget.addEventListener("focusin", fiTrace, true);
+    subs.push({ dispose: () => traceTarget.removeEventListener("focusout", foTrace, true) });
+    subs.push({ dispose: () => traceTarget.removeEventListener("focusin", fiTrace, true) });
+    const pdTrace = (e: Event) => {
+      const tgt = e.target as Node | null;
+      const inside = tgt ? traceTarget.contains(tgt) : false;
+      push(`pointerdown target=${nodeDesc(tgt)} ${inside ? "INSIDE" : "outside"} active=${nodeDesc(document.activeElement)}`);
+    };
+    document.addEventListener("pointerdown", pdTrace, true);
+    subs.push({ dispose: () => document.removeEventListener("pointerdown", pdTrace, true) });
     // 조합 프리뷰 커서 정합(실기기 지문 기반 — ime-preedit.ts 머리 주석 참조).
     const preedit = attachGhosttyPreedit(term, cell);
     subs.push({ dispose: () => preedit.dispose() });
@@ -315,8 +337,30 @@ export default {
               target.dispatchEvent(new FocusEvent(phase, { bubbles: true }));
               return { ok: true, phase, focused: inst?.focusCursor?.isFocused(), trace: inst?.focusCursor?.trace() };
             }
+            if (phase === "click-away") {
+              // 배선 검증: 조합 활성 상태에서 터미널 밖 pointerdown → 조합 요소가 blur 되는가.
+              // (WebKit 네이티브 커밋-삼킴은 synthetic 으로 재현 불가 — 이건 우리 방어의 발화만 확인)
+              target.focus();
+              target.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+              target.dispatchEvent(new CompositionEvent("compositionupdate", { data: "한", bubbles: true }));
+              const beforeActive = document.activeElement === target || target.contains(document.activeElement);
+              document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+              const afterActive = document.activeElement === target || target.contains(document.activeElement);
+              target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
+              return { ok: true, phase, terminalFocusedBeforeClick: beforeActive, terminalFocusedAfterClick: afterActive, released: beforeActive && !afterActive };
+            }
             if (phase === "focus-state") {
-              return { ok: true, phase, focused: inst?.focusCursor?.isFocused(), trace: inst?.focusCursor?.trace() };
+              const ae = document.activeElement as HTMLElement | null;
+              const desc = (el: HTMLElement | null): string =>
+                el ? `${el.tagName}${el.getAttribute("data-node") ? "[" + el.getAttribute("data-node") + "]" : ""}${el.className ? "." + String(el.className).split(" ").slice(0, 2).join(".") : ""}` : "null";
+              return {
+                ok: true,
+                phase,
+                focused: inst?.focusCursor?.isFocused(),
+                trace: inst?.focusCursor?.trace(),
+                activeElement: desc(ae),
+                isTerminalFocused: t.element === ae || t.element?.contains(ae),
+              };
             }
             target.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
             target.dispatchEvent(new CompositionEvent("compositionupdate", { data: text, bubbles: true }));

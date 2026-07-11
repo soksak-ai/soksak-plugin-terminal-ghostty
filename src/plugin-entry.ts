@@ -2,6 +2,7 @@
 // M0 스파이크: K1(WASM 단일번들)·K2(pty 왕복)·K3(버퍼 직렬화)·K5(fit) 실기기 판정용 최소 배선.
 // PTY 는 코어 app.pty 단일 진실(P2) — 이 플러그인은 렌더러만 소유한다.
 import { init, Terminal, FitAddon } from "ghostty-web";
+import { attachGhosttyPreedit } from "./ime-preedit";
 import type { PluginContext, PluginViewContext, Disposable } from "./host";
 
 // 플로우 컨트롤 — 5000B 처리 후 ACK(코어 pty.rs 가 짝).
@@ -160,6 +161,9 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
       subs.push({ dispose: () => traceTarget.removeEventListener(ev, h, true) });
     }
     subs.push(term.onData((d) => { IME_TRACE.push(`onData ${JSON.stringify(d)}`); if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120); }));
+    // 조합 프리뷰 커서 정합(실기기 지문 기반 — ime-preedit.ts 머리 주석 참조).
+    const preedit = attachGhosttyPreedit(term, cell);
+    subs.push({ dispose: () => preedit.dispose() });
     // 리사이즈: 컨테이너 관찰 → fit → PTY SIGWINCH.
     const ro = new ResizeObserver(() => {
       fit.fit();

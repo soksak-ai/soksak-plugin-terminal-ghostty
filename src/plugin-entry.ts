@@ -9,9 +9,12 @@ const FLOW_ACK_SIZE = 5000;
 
 interface Instance {
   ptyId: number | null;
+  term?: Terminal;
   dispose: () => void;
 }
 const instances = new Map<string, Instance>();
+// M0 진단 — write 경로 계측(스파이크 전용, 게이트 판정 후 제거).
+const DIAG = { writes: 0, writeBytes: 0, writeCb: 0, lastErr: "", bufferLen: -1, cols: 0, rows: 0, wasm: false, onResizeFired: 0, ptyResizeSent: 0 };
 
 // WASM 공유 인스턴스 init(1회) — ghostty-web 은 WASM 을 base64 data URL 로 자체 인라인하므로
 // 경로 해석 0(P8). 실패는 mount 에서 status 로 표면화한다.
@@ -95,19 +98,34 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
       return;
     }
     inst.ptyId = ptyId;
+    inst.term = term;
 
     // 출력: PTY → term. ACK 플로우 컨트롤(5000B 누적마다).
     let pendingAck = 0;
     subs.push(
       pty.onData(ptyId, (bytes) => {
-        term.write(bytes, () => {
+        DIAG.writes += 1;
+        DIAG.writeBytes += bytes.byteLength;
+        try {
+          // ghostty-web 의 write 는 동기 파싱(wasmTerm.write 즉시 반영 — 프로브 실측)이고,
+          // 콜백은 렌더 rAF 에 묶인다. ACK 를 콜백에 걸면 가려진 창(rAF 정지)에서 5000B 후
+          // PTY 가 영구 stall — 파싱 완료 기준인 동기 ACK 가 옳다(xterm 은 비동기 파서라 콜백).
+          term.write(bytes, () => {
+            DIAG.writeCb += 1; // 렌더 rAF 생존 관측용(진단)
+          });
           pendingAck += bytes.byteLength;
           if (pendingAck >= FLOW_ACK_SIZE) {
             const n = pendingAck;
             pendingAck = 0;
             void pty.ack(ptyId, n);
           }
-        });
+        } catch (e) {
+          DIAG.lastErr = String(e);
+        }
+        DIAG.bufferLen = term.buffer.active.length;
+        DIAG.cols = term.cols;
+        DIAG.rows = term.rows;
+        DIAG.wasm = !!term.wasmTerm;
       }),
     );
     // 입력: term → PTY.
@@ -119,7 +137,11 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     ro.observe(cell);
     subs.push({ dispose: () => ro.disconnect() });
     subs.push(
-      term.onResize(({ cols, rows }) => void pty.resize(ptyId, cols, rows)),
+      term.onResize(({ cols, rows }) => {
+        DIAG.onResizeFired += 1;
+        DIAG.ptyResizeSent += 1;
+        void pty.resize(ptyId, cols, rows);
+      }),
     );
     // 제목: OSC 0/2 → 탭 제목(콘텐츠 사실 채널).
     subs.push(term.onTitleChange((t) => t && vctx.setTitle(t)));
@@ -128,16 +150,17 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     subs.push(
       pty.registerIo(viewId, {
         readBuffer: (lines) => {
+          // buffer.length 는 rows+스크롤백 전체(빈 꼬리 포함) — 끝에서 읽으면 빈 줄만 나온다(실측).
+          // 전체를 읽어 트레일링 빈 줄을 지운 "실사용 영역"의 마지막 N줄을 반환한다(readBuffer 계약).
           const buf = term.buffer.active;
-          const total = buf.length;
-          const want = Math.min(lines ?? total, total);
-          const start = total - want;
-          const out: string[] = [];
-          for (let y = start; y < total; y++) {
-            const line = buf.getLine(y);
-            if (line) out.push(line.translateToString(true));
+          const all: string[] = [];
+          for (let y = 0; y < buf.length; y++) {
+            all.push(buf.getLine(y)?.translateToString(true) ?? "");
           }
-          return out.join("\n").replace(/\n+$/, "");
+          let end = all.length;
+          while (end > 0 && all[end - 1] === "") end--;
+          const used = all.slice(0, end);
+          return (lines ? used.slice(-lines) : used).join("\n");
         },
         sendInput: (data) => void pty.write(ptyId, data),
       }),
@@ -171,6 +194,37 @@ export default {
       );
     }
     if (app.commands) {
+      ctx.subscriptions.push(
+        app.commands.register("diag", {
+          description: "M0 spike diagnostics — write-path counters + direct probe (temporary).",
+          params: { paneId: { type: "string", description: "target pane (viewId)" } },
+          message: () => "진단 스냅샷입니다.",
+          handler: (p) => {
+            const want = typeof p.paneId === "string" ? (p.paneId as string) : null;
+            const inst = want ? instances.get(want) : [...instances.values()].find((i) => i.term);
+            let probe: Record<string, unknown> = {};
+            if (inst?.term) {
+              const t = inst.term;
+              try {
+                t.write("PROBE_XYZ\r\n");
+                const lines: string[] = [];
+                for (let y = 0; y < Math.min(6, t.buffer.active.length); y++) {
+                  lines.push(t.buffer.active.getLine(y)?.translateToString(true) ?? "<null>");
+                }
+                probe = {
+                  probeLines: lines,
+                  cursorY: (t.buffer.active as unknown as { cursorY?: number }).cursorY,
+                  viewportY: t.viewportY,
+                  elemSize: t.element ? `${t.element.clientWidth}x${t.element.clientHeight}` : "no-elem",
+                };
+              } catch (e) {
+                probe = { probeErr: String(e) };
+              }
+            }
+            return { ok: true, ...DIAG, ...probe };
+          },
+        }),
+      );
       ctx.subscriptions.push(
         app.commands.register("ping", {
           description: "Load/engine check — returns the plugin id and engine (E2E).",

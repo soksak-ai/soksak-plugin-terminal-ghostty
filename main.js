@@ -2982,6 +2982,7 @@ For tests, pass a Ghostty instance directly:
 // src/plugin-entry.ts
 var FLOW_ACK_SIZE = 5e3;
 var instances = /* @__PURE__ */ new Map();
+var DIAG = { writes: 0, writeBytes: 0, writeCb: 0, lastErr: "", bufferLen: -1, cols: 0, rows: 0, wasm: false, onResizeFired: 0, ptyResizeSent: 0 };
 var initP = null;
 var ensureInit = () => initP ??= oA();
 function mountTerminal(container, ctx, vctx) {
@@ -3053,17 +3054,29 @@ function mountTerminal(container, ctx, vctx) {
       return;
     }
     inst.ptyId = ptyId;
+    inst.term = term;
     let pendingAck = 0;
     subs.push(
       pty.onData(ptyId, (bytes) => {
-        term.write(bytes, () => {
+        DIAG.writes += 1;
+        DIAG.writeBytes += bytes.byteLength;
+        try {
+          term.write(bytes, () => {
+            DIAG.writeCb += 1;
+          });
           pendingAck += bytes.byteLength;
           if (pendingAck >= FLOW_ACK_SIZE) {
             const n2 = pendingAck;
             pendingAck = 0;
             void pty.ack(ptyId, n2);
           }
-        });
+        } catch (e3) {
+          DIAG.lastErr = String(e3);
+        }
+        DIAG.bufferLen = term.buffer.active.length;
+        DIAG.cols = term.cols;
+        DIAG.rows = term.rows;
+        DIAG.wasm = !!term.wasmTerm;
       })
     );
     subs.push(term.onData((data) => void pty.write(ptyId, data)));
@@ -3073,22 +3086,25 @@ function mountTerminal(container, ctx, vctx) {
     ro.observe(cell);
     subs.push({ dispose: () => ro.disconnect() });
     subs.push(
-      term.onResize(({ cols, rows }) => void pty.resize(ptyId, cols, rows))
+      term.onResize(({ cols, rows }) => {
+        DIAG.onResizeFired += 1;
+        DIAG.ptyResizeSent += 1;
+        void pty.resize(ptyId, cols, rows);
+      })
     );
     subs.push(term.onTitleChange((t) => t && vctx.setTitle(t)));
     subs.push(
       pty.registerIo(viewId, {
         readBuffer: (lines) => {
           const buf = term.buffer.active;
-          const total = buf.length;
-          const want = Math.min(lines ?? total, total);
-          const start = total - want;
-          const out = [];
-          for (let y2 = start; y2 < total; y2++) {
-            const line = buf.getLine(y2);
-            if (line) out.push(line.translateToString(true));
+          const all = [];
+          for (let y2 = 0; y2 < buf.length; y2++) {
+            all.push(buf.getLine(y2)?.translateToString(true) ?? "");
           }
-          return out.join("\n").replace(/\n+$/, "");
+          let end = all.length;
+          while (end > 0 && all[end - 1] === "") end--;
+          const used = all.slice(0, end);
+          return (lines ? used.slice(-lines) : used).join("\n");
         },
         sendInput: (data) => void pty.write(ptyId, data)
       })
@@ -3117,6 +3133,37 @@ var plugin_entry_default = {
       );
     }
     if (app.commands) {
+      ctx.subscriptions.push(
+        app.commands.register("diag", {
+          description: "M0 spike diagnostics \u2014 write-path counters + direct probe (temporary).",
+          params: { paneId: { type: "string", description: "target pane (viewId)" } },
+          message: () => "\uC9C4\uB2E8 \uC2A4\uB0C5\uC0F7\uC785\uB2C8\uB2E4.",
+          handler: (p) => {
+            const want = typeof p.paneId === "string" ? p.paneId : null;
+            const inst = want ? instances.get(want) : [...instances.values()].find((i) => i.term);
+            let probe = {};
+            if (inst?.term) {
+              const t = inst.term;
+              try {
+                t.write("PROBE_XYZ\r\n");
+                const lines = [];
+                for (let y2 = 0; y2 < Math.min(6, t.buffer.active.length); y2++) {
+                  lines.push(t.buffer.active.getLine(y2)?.translateToString(true) ?? "<null>");
+                }
+                probe = {
+                  probeLines: lines,
+                  cursorY: t.buffer.active.cursorY,
+                  viewportY: t.viewportY,
+                  elemSize: t.element ? `${t.element.clientWidth}x${t.element.clientHeight}` : "no-elem"
+                };
+              } catch (e3) {
+                probe = { probeErr: String(e3) };
+              }
+            }
+            return { ok: true, ...DIAG, ...probe };
+          }
+        })
+      );
       ctx.subscriptions.push(
         app.commands.register("ping", {
           description: "Load/engine check \u2014 returns the plugin id and engine (E2E).",

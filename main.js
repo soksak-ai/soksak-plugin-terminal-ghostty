@@ -3003,15 +3003,12 @@ function attachGhosttyPreedit(term, host) {
   overlay.setAttribute("data-node", "ime-preedit");
   overlay.style.cssText = "position:absolute;z-index:3;pointer-events:none;display:none";
   host.appendChild(overlay);
-  const rendererMetrics = () => {
-    const r2 = term.renderer;
-    const m2 = r2?.metrics;
-    return m2 && m2.width > 0 && m2.height > 0 ? m2 : null;
-  };
+  const renderer = () => term.renderer;
   const draw = (data) => {
-    const m2 = rendererMetrics();
+    const r2 = renderer();
+    const m2 = r2?.metrics;
     const canvasEl = (term.element ?? host).querySelector("canvas");
-    if (!m2 || !canvasEl) return;
+    if (!m2 || !(m2.width > 0) || !(m2.height > 0) || !canvasEl) return;
     const cRect = canvasEl.getBoundingClientRect();
     const hRect = host.getBoundingClientRect();
     const col = term.buffer.active.cursorX;
@@ -3028,14 +3025,28 @@ function attachGhosttyPreedit(term, host) {
     overlay.style.top = `${cRect.top - hRect.top + row * m2.height}px`;
     const ctx = overlay.getContext("2d");
     ctx.scale(dpr, dpr);
-    ctx.fillStyle = String(term.options.theme?.cursor ?? "#3b82f6");
+    ctx.textBaseline = "alphabetic";
+    const cursorColor = r2?.theme?.cursor ?? String(term.options.theme?.cursor ?? "#3b82f6");
+    const bgColor = r2?.theme?.background ?? String(term.options.theme?.background ?? "#fff");
+    const font = `${r2?.fontSize ?? term.options.fontSize}px ${r2?.fontFamily ?? term.options.fontFamily}`;
+    ctx.fillStyle = cursorColor;
     ctx.fillRect(0, 0, wCss, hCss);
-    ctx.fillStyle = String(term.options.theme?.background ?? "#fff");
-    ctx.font = `${term.options.fontSize}px ${term.options.fontFamily}`;
+    ctx.fillStyle = bgColor;
+    ctx.font = font;
     ctx.fillText(data, 0, m2.baseline);
-    const ul = Math.max(2, Math.floor(hCss * 0.1));
+    const ul = Math.max(2, Math.floor(hCss * 0.15));
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(0, hCss - ul, wCss, ul);
     overlay.style.display = "block";
+    window.__ghosttyPreeditDiag = {
+      overlay: { left: overlay.style.left, top: overlay.style.top, wCss, hCss },
+      metrics: { ...m2 },
+      cursor: { x: col * m2.width, y: row * m2.height, w: m2.width, h: m2.height },
+      canvasRect: { left: cRect.left, top: cRect.top, w: cRect.width, h: cRect.height },
+      hostRect: { left: hRect.left, top: hRect.top },
+      dpr: window.devicePixelRatio,
+      font
+    };
   };
   let composing = false;
   const onStart = () => {
@@ -3069,6 +3080,71 @@ function attachGhosttyPreedit(term, host) {
         el.style.caretColor = prev.caret;
       }
     }
+  };
+}
+
+// src/cursor-focus.ts
+function attachFocusCursor(term, host) {
+  const r2 = term.renderer;
+  if (!r2 || typeof r2.renderCursor !== "function")
+    return { dispose() {
+    }, isFocused: () => false, trace: () => ["no renderer"] };
+  const original = r2.renderCursor;
+  let focused = host.contains(document.activeElement);
+  const log = [`init focused=${focused}`];
+  const note = (m2) => {
+    log.push(m2);
+    if (log.length > 40) log.splice(0, log.length - 40);
+  };
+  const repaintCursor = () => {
+    if (r2.lastCursorPosition) r2.lastCursorPosition = { x: -1, y: -1 };
+  };
+  r2.renderCursor = function(col, row) {
+    if (focused) {
+      original.call(r2, col, row);
+      return;
+    }
+    const m2 = r2.metrics;
+    const ctx = r2.ctx;
+    if (!m2 || !ctx) return;
+    ctx.strokeStyle = r2.theme?.cursor ?? "#3b82f6";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(col * m2.width + 0.5, row * m2.height + 0.5, m2.width - 1, m2.height - 1);
+  };
+  const onFocusIn = (e3) => {
+    focused = true;
+    note(`focusin <- ${e3.target?.tagName}`);
+    repaintCursor();
+  };
+  const onFocusOut = (e3) => {
+    focused = false;
+    note(`focusout <- ${e3.target?.tagName}`);
+    repaintCursor();
+  };
+  const onWinBlur = () => {
+    focused = false;
+    note("window blur");
+    repaintCursor();
+  };
+  const onWinFocus = () => {
+    focused = host.contains(document.activeElement);
+    note(`window focus -> ${focused}`);
+    repaintCursor();
+  };
+  host.addEventListener("focusin", onFocusIn);
+  host.addEventListener("focusout", onFocusOut);
+  window.addEventListener("blur", onWinBlur);
+  window.addEventListener("focus", onWinFocus);
+  return {
+    dispose() {
+      host.removeEventListener("focusin", onFocusIn);
+      host.removeEventListener("focusout", onFocusOut);
+      window.removeEventListener("blur", onWinBlur);
+      window.removeEventListener("focus", onWinFocus);
+      delete r2.renderCursor;
+    },
+    isFocused: () => focused,
+    trace: () => [...log]
   };
 }
 
@@ -3221,6 +3297,9 @@ function mountTerminal(container, ctx, vctx) {
     }));
     const preedit = attachGhosttyPreedit(term, cell);
     subs.push({ dispose: () => preedit.dispose() });
+    const focusCursor = attachFocusCursor(term, cell);
+    subs.push({ dispose: () => focusCursor.dispose() });
+    inst.focusCursor = focusCursor;
     const ro = new ResizeObserver(() => {
       fit.fit();
     });
@@ -3302,6 +3381,38 @@ var plugin_entry_default = {
               }
             }
             return { ok: true, ...DIAG, ...probe };
+          }
+        })
+      );
+      ctx.subscriptions.push(
+        app.commands.register("ime.probe", {
+          description: "M0: synthetic composition probe - draws the preedit and returns geometry diff vs cursor (temporary). phase=show keeps the preview on screen for capture; phase=hide ends it.",
+          params: { paneId: { type: "string" }, text: { type: "string" }, phase: { type: "string" } },
+          message: () => "\uD504\uB9AC\uC5D0\uB527 \uAE30\uD558 \uC2A4\uB0C5\uC0F7\uC785\uB2C8\uB2E4.",
+          handler: (p) => {
+            const want = typeof p.paneId === "string" ? p.paneId : null;
+            const inst = want ? instances.get(want) : [...instances.values()].find((i) => i.term);
+            const t = inst?.term;
+            if (!t?.element) return { ok: false, error: "no terminal" };
+            const target = t.element;
+            const text = String(p.text ?? "\uD55C");
+            const phase = String(p.phase ?? "pulse");
+            if (phase === "hide") {
+              target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
+              return { ok: true, phase };
+            }
+            if (phase === "focusin" || phase === "focusout") {
+              target.dispatchEvent(new FocusEvent(phase, { bubbles: true }));
+              return { ok: true, phase, focused: inst?.focusCursor?.isFocused(), trace: inst?.focusCursor?.trace() };
+            }
+            if (phase === "focus-state") {
+              return { ok: true, phase, focused: inst?.focusCursor?.isFocused(), trace: inst?.focusCursor?.trace() };
+            }
+            target.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+            target.dispatchEvent(new CompositionEvent("compositionupdate", { data: text, bubbles: true }));
+            const diag = window.__ghosttyPreeditDiag ?? null;
+            if (phase !== "show") target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
+            return { ok: true, phase, diag };
           }
         })
       );

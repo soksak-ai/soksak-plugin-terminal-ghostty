@@ -2979,6 +2979,73 @@ For tests, pass a Ghostty instance directly:
   return R;
 }
 
+// src/ime-preedit.ts
+function attachGhosttyPreedit(term, host) {
+  const target = term.element ?? host;
+  const prevFontSize = target.style.fontSize;
+  const prevColor = target.style.color;
+  const prevCaret = target.style.caretColor;
+  target.style.fontSize = "0px";
+  target.style.color = "transparent";
+  target.style.caretColor = "transparent";
+  const overlay = document.createElement("div");
+  overlay.setAttribute("data-node", "ime-preedit");
+  overlay.style.cssText = "position:absolute;z-index:3;pointer-events:none;display:none;white-space:pre;text-decoration:underline;border-radius:2px";
+  host.appendChild(overlay);
+  const cellMetrics = () => {
+    const el = term.element;
+    const w = el && term.cols > 0 ? el.clientWidth / term.cols : 8;
+    const h = el && term.rows > 0 ? el.clientHeight / term.rows : 17;
+    return { w: w > 0 ? w : 8, h: h > 0 ? h : 17 };
+  };
+  const position = () => {
+    const { w, h } = cellMetrics();
+    const x = term.buffer.active.cursorX * w;
+    const y2 = (term.buffer.active.cursorY - term.getViewportY()) * h;
+    overlay.style.left = `${x}px`;
+    overlay.style.top = `${y2}px`;
+    overlay.style.font = `${term.options.fontSize}px ${term.options.fontFamily}`;
+    overlay.style.lineHeight = `${h}px`;
+    overlay.style.background = String(term.options.theme?.background ?? "var(--bg)");
+    overlay.style.color = String(term.options.theme?.foreground ?? "var(--fg)");
+  };
+  let composing = false;
+  const onStart = () => {
+    composing = true;
+    position();
+  };
+  const onUpdate = (e3) => {
+    if (!composing) return;
+    const data = e3.data ?? "";
+    if (!data) {
+      overlay.style.display = "none";
+      return;
+    }
+    position();
+    overlay.textContent = data;
+    overlay.style.display = "block";
+  };
+  const onEnd = () => {
+    composing = false;
+    overlay.style.display = "none";
+    overlay.textContent = "";
+  };
+  target.addEventListener("compositionstart", onStart, true);
+  target.addEventListener("compositionupdate", onUpdate, true);
+  target.addEventListener("compositionend", onEnd, true);
+  return {
+    dispose() {
+      target.removeEventListener("compositionstart", onStart, true);
+      target.removeEventListener("compositionupdate", onUpdate, true);
+      target.removeEventListener("compositionend", onEnd, true);
+      overlay.remove();
+      target.style.fontSize = prevFontSize;
+      target.style.color = prevColor;
+      target.style.caretColor = prevCaret;
+    }
+  };
+}
+
 // src/plugin-entry.ts
 var FLOW_ACK_SIZE = 5e3;
 var instances = /* @__PURE__ */ new Map();
@@ -3106,6 +3173,8 @@ function mountTerminal(container, ctx, vctx) {
       IME_TRACE.push(`onData ${JSON.stringify(d2)}`);
       if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120);
     }));
+    const preedit = attachGhosttyPreedit(term, cell);
+    subs.push({ dispose: () => preedit.dispose() });
     const ro = new ResizeObserver(() => {
       fit.fit();
     });

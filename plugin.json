@@ -1,0 +1,14 @@
+{
+  "spec": "soksak-spec-plugin@0.0.1",
+  "id": "soksak-plugin-terminal-ghostty",
+  "name": "soksak-plugin-terminal-ghostty",
+  "version": "0.0.1",
+  "description": "새 soksak 플러그인",
+  "entry": "main.js",
+  "permissions": [],
+  "contributes": {
+    "views": [],
+    "commands": [],
+    "programs": []
+  }
+}

@@ -2980,12 +2980,6 @@ For tests, pass a Ghostty instance directly:
 }
 
 // src/ime-preedit.ts
-var isWide = (cp) => cp >= 4352 && cp <= 4447 || cp >= 11904 && cp <= 42191 || cp >= 43360 && cp <= 43391 || cp >= 44032 && cp <= 55203 || cp >= 63744 && cp <= 64255 || cp >= 65072 && cp <= 65103 || cp >= 65280 && cp <= 65376 || cp >= 65504 && cp <= 65510;
-var cellCount = (s) => {
-  let n2 = 0;
-  for (const ch of s) n2 += isWide(ch.codePointAt(0) ?? 0) ? 2 : 1;
-  return n2;
-};
 function attachGhosttyPreedit(term, host) {
   const target = term.element ?? host;
   const focusables = /* @__PURE__ */ new Set([target]);
@@ -3013,8 +3007,11 @@ function attachGhosttyPreedit(term, host) {
     const hRect = host.getBoundingClientRect();
     const col = term.buffer.active.cursorX;
     const row = term.buffer.active.cursorY - term.getViewportY();
-    const cells = Math.max(1, cellCount(data));
-    const wCss = m2.width * cells;
+    const font = `${r2?.fontSize ?? term.options.fontSize}px ${r2?.fontFamily ?? term.options.fontFamily}`;
+    const ctx = overlay.getContext("2d");
+    ctx.font = font;
+    const advance = ctx.measureText(data).width;
+    const wCss = Math.max(m2.width, Math.ceil(advance));
     const hCss = m2.height;
     const dpr = window.devicePixelRatio || 1;
     overlay.width = Math.round(wCss * dpr);
@@ -3023,12 +3020,10 @@ function attachGhosttyPreedit(term, host) {
     overlay.style.height = `${hCss}px`;
     overlay.style.left = `${cRect.left - hRect.left + col * m2.width}px`;
     overlay.style.top = `${cRect.top - hRect.top + row * m2.height}px`;
-    const ctx = overlay.getContext("2d");
     ctx.scale(dpr, dpr);
     ctx.textBaseline = "alphabetic";
     const cursorColor = r2?.theme?.cursor ?? String(term.options.theme?.cursor ?? "#3b82f6");
     const bgColor = r2?.theme?.background ?? String(term.options.theme?.background ?? "#fff");
-    const font = `${r2?.fontSize ?? term.options.fontSize}px ${r2?.fontFamily ?? term.options.fontFamily}`;
     ctx.fillStyle = cursorColor;
     ctx.fillRect(0, 0, wCss, hCss);
     ctx.fillStyle = bgColor;
@@ -3045,16 +3040,20 @@ function attachGhosttyPreedit(term, host) {
       canvasRect: { left: cRect.left, top: cRect.top, w: cRect.width, h: cRect.height },
       hostRect: { left: hRect.left, top: hRect.top },
       dpr: window.devicePixelRatio,
-      font
+      font,
+      advance
     };
   };
   let composing = false;
+  let lastData = "";
   const onStart = () => {
     composing = true;
+    lastData = "";
   };
   const onUpdate = (e3) => {
     if (!composing) return;
     const data = e3.data ?? "";
+    lastData = data;
     if (!data) {
       overlay.style.display = "none";
       return;
@@ -3063,16 +3062,32 @@ function attachGhosttyPreedit(term, host) {
   };
   const onEnd = () => {
     composing = false;
+    lastData = "";
+    overlay.style.display = "none";
+  };
+  const onFocusOut = () => {
+    overlay.style.display = "none";
+  };
+  const onFocusIn = () => {
+    if (composing && lastData) draw(lastData);
+  };
+  const onWinBlur = () => {
     overlay.style.display = "none";
   };
   target.addEventListener("compositionstart", onStart, true);
   target.addEventListener("compositionupdate", onUpdate, true);
   target.addEventListener("compositionend", onEnd, true);
+  host.addEventListener("focusout", onFocusOut);
+  host.addEventListener("focusin", onFocusIn);
+  window.addEventListener("blur", onWinBlur);
   return {
     dispose() {
       target.removeEventListener("compositionstart", onStart, true);
       target.removeEventListener("compositionupdate", onUpdate, true);
       target.removeEventListener("compositionend", onEnd, true);
+      host.removeEventListener("focusout", onFocusOut);
+      host.removeEventListener("focusin", onFocusIn);
+      window.removeEventListener("blur", onWinBlur);
       overlay.remove();
       for (const [el, prev] of prevStyles) {
         el.style.fontSize = prev.fontSize;

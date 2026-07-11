@@ -1,4 +1,10 @@
 {
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/*.test.ts"
+  },
   "dependencies": {
     "esbuild": "^0.28.1",
     "ghostty-web": "^0.4.0",

@@ -4,6 +4,7 @@
 import { init, Terminal, FitAddon } from "ghostty-web";
 import { attachGhosttyPreedit } from "./ime-preedit";
 import { attachFocusCursor } from "./cursor-focus";
+import { openWithoutImplicitFocus } from "./focus-contract";
 import type { PluginContext, PluginViewContext, Disposable } from "./host";
 
 // 플로우 컨트롤 — 5000B 처리 후 ACK(코어 pty.rs 가 짝).
@@ -12,6 +13,9 @@ const FLOW_ACK_SIZE = 5000;
 interface Instance {
   ptyId: number | null;
   term?: Terminal;
+  ready: boolean;
+  preedit?: import("./ime-preedit").PreeditHandle;
+  focusRequest?: { signal: AbortSignal };
   focusCursor?: import("./cursor-focus").FocusCursorHandle;
   dispose: () => void;
 }
@@ -51,12 +55,15 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
 
   const inst: Instance = {
     ptyId: null,
+    ready: false,
     dispose: () => {
       if (disposed) return;
       disposed = true;
       for (const s of subs.splice(0)) s.dispose();
       if (inst.ptyId != null) void app.pty?.close(inst.ptyId);
       instances.delete(viewId);
+      inst.ready = false;
+      inst.focusRequest = undefined;
       cell.remove();
     },
   };
@@ -90,7 +97,19 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
-    term.open(cell);
+    openWithoutImplicitFocus(term, cell);
+    inst.term = term;
+    // [M0 진단 — 자기 element 스코프, 공유 오염 없음] 이 인스턴스의 element.focus() 호출자를 스택으로
+    // 잡는다: xterm 클릭 시 ghostty 가 스스로 재포커스하는(바운스) 범인 규명용. 판정 후 제거.
+    if (term.element) {
+      const el = term.element as HTMLElement;
+      const rawElFocus = el.focus.bind(el);
+      el.focus = ((...args: unknown[]) => {
+        const stack = (new Error().stack ?? "").split("\n").slice(1, 6).map((s) => s.trim().replace(/^at /, "")).join(" <- ");
+        traceLine(`[${viewId}] element.focus() BY: ${stack}`);
+        return (rawElFocus as (...a: unknown[]) => void)(...args);
+      }) as typeof el.focus;
+    }
     // [임시 교정 — 상류 결함] ghostty-web CanvasRenderer.measureFont 가 "M" 잉크 박스
     // (actualBoundingBox*)로 행 높이·기준선을 잡는다 → 디센더 없는 "M" 기준이라 행이 과소하고,
     // 잉크가 더 높은 글리프(한글·숫자)가 셀 상단에 붙어 커서 블록만 아래로 처져 보인다(실기기).
@@ -142,7 +161,6 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
       return;
     }
     inst.ptyId = ptyId;
-    inst.term = term;
 
     // 출력: PTY → term. ACK 플로우 컨트롤(5000B 누적마다).
     let pendingAck = 0;
@@ -210,6 +228,7 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     subs.push({ dispose: () => traceTarget.removeEventListener("focusin", fiTrace, true) });
     // 조합 프리뷰 커서 정합(실기기 지문 기반 — ime-preedit.ts 머리 주석 참조).
     const preedit = attachGhosttyPreedit(term, cell);
+    inst.preedit = preedit;
     subs.push({ dispose: () => preedit.dispose() });
     // 포커스 in/out 커서 구분(비포커스=중공) — cursor-focus.ts 머리 주석 참조.
     const focusCursor = attachFocusCursor(term, cell);
@@ -254,8 +273,17 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     // 자동 실행 명령(에이전트 프로그램 채널) — spawn 직후 1회.
     if (vctx.command) void pty.write(ptyId, `${vctx.command}\r`);
 
+    inst.ready = true;
+    const queuedFocus = inst.focusRequest;
+    inst.focusRequest = undefined;
+    if (
+      queuedFocus &&
+      !queuedFocus.signal.aborted &&
+      !cell.contains(document.activeElement)
+    ) {
+      term.focus();
+    }
     vctx.setStatus(null);
-    term.focus();
   })();
 
   return inst.dispose;
@@ -274,6 +302,19 @@ export default {
           unmount(container) {
             cleanups.get(container)?.();
             cleanups.delete(container);
+          },
+          prepareFocusTransfer(_container, vctx) {
+            if (!vctx.viewId) return;
+            instances.get(vctx.viewId)?.preedit?.prepareFocusTransfer();
+          },
+          focus(_container, vctx, request) {
+            if (!vctx.viewId || request.signal.aborted) return;
+            const inst = instances.get(vctx.viewId);
+            if (!inst) return;
+            inst.focusRequest = request;
+            if (!inst.term || !inst.ready) return;
+            inst.focusRequest = undefined;
+            inst.term.focus();
           },
         }),
       );
@@ -313,7 +354,7 @@ export default {
       ctx.subscriptions.push(
         app.commands.register("ime.probe", {
           description: "M0: synthetic composition probe - draws the preedit and returns geometry diff vs cursor (temporary). phase=show keeps the preview on screen for capture; phase=hide ends it.",
-          params: { paneId: { type: "string" }, text: { type: "string" }, phase: { type: "string" } },
+          params: { paneId: { type: "string" }, text: { type: "string" }, phase: { type: "string" }, selector: { type: "string" } },
           message: () => "프리에딧 기하 스냅샷입니다.",
           handler: (p) => {
             const want = typeof p.paneId === "string" ? (p.paneId as string) : null;
@@ -326,6 +367,20 @@ export default {
             if (phase === "hide") {
               target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
               return { ok: true, phase };
+            }
+            if (phase === "clickother") {
+              // 이 문서 안의 다른 요소(예: xterm textarea/canvas)를 실제 클릭 시퀀스로 친다 —
+              // 바운스 자가 재현용. 합성 mousedown 도 JS 핸들러(xterm 의 textarea.focus)는 발동한다.
+              const sel = String(p.selector ?? ".xterm-helper-textarea");
+              const other = document.querySelector(sel) as HTMLElement | null;
+              if (!other) return { ok: false, error: `no element: ${sel}` };
+              const r = other.getBoundingClientRect();
+              const cx = r.left + Math.max(1, r.width / 2), cy = r.top + Math.max(1, r.height / 2);
+              const before = document.activeElement === target || target.contains(document.activeElement);
+              for (const type of ["mousedown", "mouseup", "click"]) {
+                other.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: cx, clientY: cy }));
+              }
+              return { ok: true, phase, selector: sel, terminalFocusedBefore: before };
             }
             if (phase === "clickcanvas") {
               // 실제 클릭 경로 재현: 대상 인스턴스 canvas 에 mousedown/mouseup/click 디스패치

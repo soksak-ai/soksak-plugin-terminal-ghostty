@@ -20,6 +20,9 @@
     "terminal:read",
     "data"
   ],
+  "implements": [
+    "terminal-spec@1"
+  ],
   "contributes": {
     "programs": [
       {

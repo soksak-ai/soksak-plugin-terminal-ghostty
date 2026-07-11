@@ -43,11 +43,7 @@
         "placements": [
           "content"
         ],
-        "defaultPlacement": "content",
-        "status": [
-          "connecting",
-          "error"
-        ]
+        "defaultPlacement": "content"
       }
     ],
     "commands": [

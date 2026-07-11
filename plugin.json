@@ -43,11 +43,7 @@
         "placements": [
           "content"
         ],
-        "defaultPlacement": "content",
-        "status": [
-          "connecting",
-          "error"
-        ]
+        "defaultPlacement": "content"
       }
     ],
     "commands": [
@@ -57,10 +53,23 @@
           "ko": "핑",
           "en": "Ping"
         }
+      },
+      {
+        "name": "diag",
+        "title": {
+          "ko": "진단(임시)",
+          "en": "Diag (temp)"
+        }
       }
     ],
     "nodes": [
-      "terminal"
+      {
+        "id": "terminal",
+        "description": {
+          "ko": "Ghostty 터미널 컨테이너",
+          "en": "Ghostty terminal container"
+        }
+      }
     ]
   }
 }

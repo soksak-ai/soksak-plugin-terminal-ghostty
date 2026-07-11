@@ -1,14 +1,66 @@
 {
   "spec": "soksak-spec-plugin@0.0.1",
   "id": "soksak-plugin-terminal-ghostty",
-  "name": "soksak-plugin-terminal-ghostty",
+  "name": {
+    "ko": "터미널(고스티)",
+    "en": "Terminal (Ghostty)"
+  },
   "version": "0.0.1",
-  "description": "새 soksak 플러그인",
+  "description": {
+    "ko": "Ghostty VT 엔진 기반 터미널 — 기존 터미널과 나란히 추가되는 두 번째 터미널 프로그램.",
+    "en": "Terminal powered by the Ghostty VT engine — a second terminal program alongside the existing one."
+  },
   "entry": "main.js",
-  "permissions": [],
+  "permissions": [
+    "ui",
+    "commands",
+    "programs",
+    "pty",
+    "terminal",
+    "terminal:read",
+    "data"
+  ],
   "contributes": {
-    "views": [],
-    "commands": [],
-    "programs": []
+    "programs": [
+      {
+        "id": "terminal-ghostty",
+        "title": {
+          "ko": "터미널(고스티)",
+          "en": "Terminal (Ghostty)"
+        },
+        "kind": "view",
+        "view": "content"
+      }
+    ],
+    "views": [
+      {
+        "id": "content",
+        "title": {
+          "ko": "터미널(고스티)",
+          "en": "Terminal (Ghostty)"
+        },
+        "icon": "🬀",
+        "placements": [
+          "content"
+        ],
+        "defaultPlacement": "content",
+        "status": [
+          "connecting",
+          "error"
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "name": "ping",
+        "title": {
+          "ko": "핑",
+          "en": "Ping"
+        }
+      }
+    ],
+    "nodes": [
+      "terminal"
+    ]
   }
 }

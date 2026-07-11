@@ -2,7 +2,6 @@
 // M0 스파이크: K1(WASM 단일번들)·K2(pty 왕복)·K3(버퍼 직렬화)·K5(fit) 실기기 판정용 최소 배선.
 // PTY 는 코어 app.pty 단일 진실(P2) — 이 플러그인은 렌더러만 소유한다.
 import { init, Terminal, FitAddon } from "ghostty-web";
-import { WebkitImeAddon } from "soksak-kit-terminal-common";
 import type { PluginContext, PluginViewContext, Disposable } from "./host";
 
 // 플로우 컨트롤 — 5000B 처리 후 ACK(코어 pty.rs 가 짝).
@@ -141,11 +140,10 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     );
     // 입력: term → PTY.
     subs.push(term.onData((data) => void pty.write(ptyId, data)));
-    // 한글 IME — WKWebView 비표준 조합 경로(WebKit bug 274700) 가드 + 커서 위치 프리뷰.
-    // kit 의 검증된 애드온(구조적 타입) 부착. 완성 텍스트는 PTY 로 직행.
-    const ime = new WebkitImeAddon({ onData: (data) => void pty.write(ptyId, data) });
-    term.loadAddon(ime as unknown as Parameters<typeof term.loadAddon>[0]);
-    subs.push({ dispose: () => ime.dispose() });
+    // 한글 IME — [보류] kit 애드온 직부착은 이중 처리를 만든다(실기기 악화 확인: 백스페이스
+    // 삼킴 + 프리뷰 미이동). 애드온의 가드는 xterm 의 이벤트 순서·조합 소유권(xterm 은 표준
+    // 경로를 CompositionHelper 에 위임) 전제인데, ghostty-web 은 InputHandler 가 composition
+    // 이벤트를 자체 소유한다 — 통합은 그 소유권 분석 후 재설계(아래 조사로 진행).
     // 리사이즈: 컨테이너 관찰 → fit → PTY SIGWINCH.
     const ro = new ResizeObserver(() => {
       fit.fit();

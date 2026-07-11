@@ -2,6 +2,7 @@
 // M0 스파이크: K1(WASM 단일번들)·K2(pty 왕복)·K3(버퍼 직렬화)·K5(fit) 실기기 판정용 최소 배선.
 // PTY 는 코어 app.pty 단일 진실(P2) — 이 플러그인은 렌더러만 소유한다.
 import { init, Terminal, FitAddon } from "ghostty-web";
+import { WebkitImeAddon } from "soksak-kit-terminal-common";
 import type { PluginContext, PluginViewContext, Disposable } from "./host";
 
 // 플로우 컨트롤 — 5000B 처리 후 ACK(코어 pty.rs 가 짝).
@@ -65,24 +66,34 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     }
     if (disposed) return;
 
-    // 테마 — 코어 발행 토큰만 소비(P7: 고스트 변수 금지). 실측 스냅샷 후 적용.
-    const css = getComputedStyle(document.documentElement);
-    const tok = (name: string): string => css.getPropertyValue(name).trim();
-    const term = new Terminal({
-      fontFamily: String(app.settings.get("appFontFamily") ?? "Menlo, monospace"),
-      fontSize: Number(app.settings.get("appFontSize") ?? 13),
-      theme: {
+    // 테마 — 코어 발행 토큰만 소비(P7: 고스트 변수 금지). 스냅샷 함수 + 라이브 추종(아래).
+    const themeNow = () => {
+      const css = getComputedStyle(document.documentElement);
+      const tok = (name: string): string => css.getPropertyValue(name).trim();
+      return {
         background: tok("--bg") || "#111",
         foreground: tok("--fg") || "#eee",
         cursor: tok("--acc") || "#3b82f6",
         selectionBackground: tok("--accbg") || "#3b82f655",
-      },
+      };
+    };
+    const term = new Terminal({
+      fontFamily: String(app.settings.get("appFontFamily") ?? "Menlo, monospace"),
+      fontSize: Number(app.settings.get("appFontSize") ?? 13),
+      theme: themeNow(),
       scrollback: 5000,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(cell);
     fit.fit();
+    // 앱 테마 라이브 추종 — documentElement 의 테마 계약(data-* + :root 변수) 변화를 관찰해
+    // 렌더러에 재적용한다(폴링 없음).
+    const mo = new MutationObserver(() => {
+      term.renderer?.setTheme(themeNow());
+    });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-theme-mode", "style", "class"] });
+    subs.push({ dispose: () => mo.disconnect() });
 
     // ── PTY 배선(코어 단일 진실) ──
     const pty = app.pty!;
@@ -130,6 +141,11 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     );
     // 입력: term → PTY.
     subs.push(term.onData((data) => void pty.write(ptyId, data)));
+    // 한글 IME — WKWebView 비표준 조합 경로(WebKit bug 274700) 가드 + 커서 위치 프리뷰.
+    // kit 의 검증된 애드온(구조적 타입) 부착. 완성 텍스트는 PTY 로 직행.
+    const ime = new WebkitImeAddon({ onData: (data) => void pty.write(ptyId, data) });
+    term.loadAddon(ime as unknown as Parameters<typeof term.loadAddon>[0]);
+    subs.push({ dispose: () => ime.dispose() });
     // 리사이즈: 컨테이너 관찰 → fit → PTY SIGWINCH.
     const ro = new ResizeObserver(() => {
       fit.fit();

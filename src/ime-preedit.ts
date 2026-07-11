@@ -7,7 +7,8 @@
 //     렌더러의 셀 기하(metrics.width/height/baseline)와 기준선이 어긋난다(실기기 라운드 3).
 //
 // 해법: 프리뷰를 렌더러와 동일 수식으로 그리는 미니 캔버스로 — 같은 metrics, 같은 baseline,
-// 같은 폰트, dpr 스케일, 와이드(2셀) 폭 반영. 커서 셀 위에 겹친다(조합 = 삽입 예정 표시).
+// 같은 폰트, dpr 스케일. 박스 폭은 글리프 실측 폭(measureText advance)에 맞추되(사용자 확정:
+// 격자 2셀 폭은 글자보다 넓어 보임), 커서 블록(1셀)을 항상 덮도록 최소 1셀을 보장한다.
 import type { Terminal } from "ghostty-web";
 
 export interface PreeditHandle {
@@ -28,22 +29,6 @@ interface RendererTruth {
   fontFamily?: string;
   theme?: { cursor?: string; background?: string };
 }
-
-const isWide = (cp: number): boolean =>
-  (cp >= 0x1100 && cp <= 0x115f) ||
-  (cp >= 0x2e80 && cp <= 0xa4cf) ||
-  (cp >= 0xa960 && cp <= 0xa97f) ||
-  (cp >= 0xac00 && cp <= 0xd7a3) ||
-  (cp >= 0xf900 && cp <= 0xfaff) ||
-  (cp >= 0xfe30 && cp <= 0xfe4f) ||
-  (cp >= 0xff00 && cp <= 0xff60) ||
-  (cp >= 0xffe0 && cp <= 0xffe6);
-
-const cellCount = (s: string): number => {
-  let n = 0;
-  for (const ch of s) n += isWide(ch.codePointAt(0) ?? 0) ? 2 : 1;
-  return n;
-};
 
 export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): PreeditHandle {
   const target = term.element ?? host;
@@ -78,8 +63,13 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
     const hRect = host.getBoundingClientRect();
     const col = term.buffer.active.cursorX;
     const row = term.buffer.active.cursorY - term.getViewportY();
-    const cells = Math.max(1, cellCount(data));
-    const wCss = m.width * cells;
+    const font = `${r?.fontSize ?? term.options.fontSize}px ${r?.fontFamily ?? term.options.fontFamily}`;
+    const ctx = overlay.getContext("2d")!;
+    // 박스 폭 = 글리프 실측 폭(글자에 맞춤, 사용자 확정). 커서 블록(1셀)은 항상 덮는다.
+    // 캔버스 리사이즈가 ctx 상태를 리셋하므로 측정을 먼저 한다.
+    ctx.font = font;
+    const advance = ctx.measureText(data).width;
+    const wCss = Math.max(m.width, Math.ceil(advance));
     const hCss = m.height;
     const dpr = window.devicePixelRatio || 1;
     overlay.width = Math.round(wCss * dpr);
@@ -88,14 +78,12 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
     overlay.style.height = `${hCss}px`;
     overlay.style.left = `${cRect.left - hRect.left + col * m.width}px`;
     overlay.style.top = `${cRect.top - hRect.top + row * m.height}px`;
-    const ctx = overlay.getContext("2d")!;
-    ctx.scale(dpr, dpr);
+    ctx.scale(dpr, dpr); // width 대입이 ctx 를 리셋했음 — scale·font 재설정
     ctx.textBaseline = "alphabetic"; // 렌더러와 동일(명시)
     // 커서색 배경(커서 셀을 덮는다 — 조합이 커서 자리 삽입 예정임을 표시) + 배경색 글자.
     // 색·폰트는 렌더러 자신의 필드에서 읽는다(term.options 는 구성 시점 값 — 어긋날 수 있음).
     const cursorColor = r?.theme?.cursor ?? String(term.options.theme?.cursor ?? "#3b82f6");
     const bgColor = r?.theme?.background ?? String(term.options.theme?.background ?? "#fff");
-    const font = `${r?.fontSize ?? term.options.fontSize}px ${r?.fontFamily ?? term.options.fontFamily}`;
     ctx.fillStyle = cursorColor;
     ctx.fillRect(0, 0, wCss, hCss);
     ctx.fillStyle = bgColor;
@@ -117,16 +105,20 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
       hostRect: { left: hRect.left, top: hRect.top },
       dpr: window.devicePixelRatio,
       font,
+      advance,
     };
   };
 
   let composing = false;
+  let lastData = "";
   const onStart = (): void => {
     composing = true;
+    lastData = "";
   };
   const onUpdate = (e: Event): void => {
     if (!composing) return;
     const data = (e as CompositionEvent).data ?? "";
+    lastData = data;
     if (!data) {
       overlay.style.display = "none";
       return;
@@ -135,18 +127,38 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
   };
   const onEnd = (): void => {
     composing = false;
+    lastData = "";
+    overlay.style.display = "none";
+  };
+  // 조합 미완료 중 포커스 아웃: WebKit 이 조합을 커밋하면 compositionend 가 와서 위 onEnd 로
+  // 정리된다. 커밋하지 않는 경로(윈도 전환 등)에서는 compositionend 가 없어 프리뷰가 비포커스
+  // 터미널 위에 유령으로 남는다 — 프리뷰만 숨기고 조합 상태는 건드리지 않는다(소유권은 IME).
+  // 복귀 후 조합이 살아 있으면 focusin/다음 compositionupdate 가 되살린다.
+  const onFocusOut = (): void => {
+    overlay.style.display = "none";
+  };
+  const onFocusIn = (): void => {
+    if (composing && lastData) draw(lastData);
+  };
+  const onWinBlur = (): void => {
     overlay.style.display = "none";
   };
 
   target.addEventListener("compositionstart", onStart, true);
   target.addEventListener("compositionupdate", onUpdate, true);
   target.addEventListener("compositionend", onEnd, true);
+  host.addEventListener("focusout", onFocusOut);
+  host.addEventListener("focusin", onFocusIn);
+  window.addEventListener("blur", onWinBlur);
 
   return {
     dispose() {
       target.removeEventListener("compositionstart", onStart, true);
       target.removeEventListener("compositionupdate", onUpdate, true);
       target.removeEventListener("compositionend", onEnd, true);
+      host.removeEventListener("focusout", onFocusOut);
+      host.removeEventListener("focusin", onFocusIn);
+      window.removeEventListener("blur", onWinBlur);
       overlay.remove();
       for (const [el, prev] of prevStyles) {
         el.style.fontSize = prev.fontSize;

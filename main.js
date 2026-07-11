@@ -3058,16 +3058,6 @@ function attachGhosttyPreedit(term, host) {
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(0, hCss - ul, wCss, ul);
     overlay.style.display = "block";
-    window.__ghosttyPreeditDiag = {
-      overlay: { left: overlay.style.left, top: overlay.style.top, wCss, hCss },
-      metrics: { ...m2 },
-      cursor: { x: col * m2.width, y: row * m2.height, w: m2.width, h: m2.height },
-      canvasRect: { left: cRect.left, top: cRect.top, w: cRect.width, h: cRect.height },
-      hostRect: { left: hRect.left, top: hRect.top },
-      dpr: window.devicePixelRatio,
-      font,
-      advance
-    };
   };
   const composition = new CompositionCommitState();
   const onStart = () => {
@@ -3125,16 +3115,10 @@ function attachGhosttyPreedit(term, host) {
 // src/cursor-focus.ts
 function attachFocusCursor(term, host) {
   const r2 = term.renderer;
-  if (!r2 || typeof r2.renderCursor !== "function")
-    return { dispose() {
-    }, isFocused: () => false, trace: () => ["no renderer"] };
+  if (!r2 || typeof r2.renderCursor !== "function") return { dispose() {
+  } };
   const original = r2.renderCursor;
   let focused = host.contains(document.activeElement);
-  const log = [`init focused=${focused}`];
-  const note = (m2) => {
-    log.push(m2);
-    if (log.length > 40) log.splice(0, log.length - 40);
-  };
   const repaintCursor = () => {
     if (r2.lastCursorPosition) r2.lastCursorPosition = { x: -1, y: -1 };
   };
@@ -3150,14 +3134,12 @@ function attachFocusCursor(term, host) {
     ctx.lineWidth = 1;
     ctx.strokeRect(col * m2.width + 0.5, row * m2.height + 0.5, m2.width - 1, m2.height - 1);
   };
-  const onFocusIn = (e3) => {
+  const onFocusIn = () => {
     focused = true;
-    note(`focusin <- ${e3.target?.tagName}`);
     repaintCursor();
   };
-  const onFocusOut = (e3) => {
+  const onFocusOut = () => {
     focused = false;
-    note(`focusout <- ${e3.target?.tagName}`);
     repaintCursor();
   };
   host.addEventListener("focusin", onFocusIn);
@@ -3167,9 +3149,7 @@ function attachFocusCursor(term, host) {
       host.removeEventListener("focusin", onFocusIn);
       host.removeEventListener("focusout", onFocusOut);
       delete r2.renderCursor;
-    },
-    isFocused: () => focused,
-    trace: () => [...log]
+    }
   };
 }
 
@@ -3187,12 +3167,6 @@ function openWithoutImplicitFocus(terminal, container) {
 // src/plugin-entry.ts
 var FLOW_ACK_SIZE = 5e3;
 var instances = /* @__PURE__ */ new Map();
-var DIAG = { writes: 0, writeBytes: 0, writeCb: 0, lastErr: "", bufferLen: -1, cols: 0, rows: 0, wasm: false, onResizeFired: 0, ptyResizeSent: 0 };
-var IME_TRACE = [];
-var traceLine = (line) => {
-  IME_TRACE.push(line);
-  if (IME_TRACE.length > 160) IME_TRACE.splice(0, IME_TRACE.length - 160);
-};
 var initP = null;
 var ensureInit = () => initP ??= oA();
 function mountTerminal(container, ctx, vctx) {
@@ -3257,15 +3231,6 @@ function mountTerminal(container, ctx, vctx) {
     term.loadAddon(fit);
     openWithoutImplicitFocus(term, cell);
     inst.term = term;
-    if (term.element) {
-      const el = term.element;
-      const rawElFocus = el.focus.bind(el);
-      el.focus = ((...args) => {
-        const stack = (new Error().stack ?? "").split("\n").slice(1, 6).map((s) => s.trim().replace(/^at /, "")).join(" <- ");
-        traceLine(`[${viewId}] element.focus() BY: ${stack}`);
-        return rawElFocus(...args);
-      });
-    }
     {
       const r2 = term.renderer;
       if (r2?.measureFont && r2.remeasureFont) {
@@ -3308,62 +3273,21 @@ function mountTerminal(container, ctx, vctx) {
     let pendingAck = 0;
     subs.push(
       pty.onData(ptyId, (bytes) => {
-        DIAG.writes += 1;
-        DIAG.writeBytes += bytes.byteLength;
-        try {
-          term.write(bytes, () => {
-            DIAG.writeCb += 1;
-          });
-          pendingAck += bytes.byteLength;
-          if (pendingAck >= FLOW_ACK_SIZE) {
-            const n2 = pendingAck;
-            pendingAck = 0;
-            void pty.ack(ptyId, n2);
-          }
-        } catch (e3) {
-          DIAG.lastErr = String(e3);
+        term.write(bytes);
+        pendingAck += bytes.byteLength;
+        if (pendingAck >= FLOW_ACK_SIZE) {
+          const n2 = pendingAck;
+          pendingAck = 0;
+          void pty.ack(ptyId, n2);
         }
-        DIAG.bufferLen = term.buffer.active.length;
-        DIAG.cols = term.cols;
-        DIAG.rows = term.rows;
-        DIAG.wasm = !!term.wasmTerm;
       })
     );
     subs.push(term.onData((data) => void pty.write(ptyId, data)));
-    const traceTarget = term.element ?? cell;
-    const tag = viewId;
-    const push = (line) => traceLine(`[${tag}] ${line}`);
-    const trace = (kind) => (e3) => {
-      const ie = e3;
-      push(
-        `${kind}${ie.inputType ? ":" + ie.inputType : ""}${ie.key ? " key=" + ie.key : ""}${ie.keyCode ? " kc=" + ie.keyCode : ""}${"data" in ie && ie.data != null ? " data=" + JSON.stringify(ie.data) : ""}${ie.isComposing ? " composing" : ""}`
-      );
-    };
-    for (const ev of ["keydown", "beforeinput", "input", "compositionstart", "compositionupdate", "compositionend"]) {
-      const h = trace(ev);
-      traceTarget.addEventListener(ev, h, true);
-      subs.push({ dispose: () => traceTarget.removeEventListener(ev, h, true) });
-    }
-    subs.push(term.onData((d2) => push(`onData ${JSON.stringify(d2)}`)));
-    const nodeDesc = (n2) => {
-      const el = n2;
-      if (!el || !el.tagName) return String(n2);
-      const dn = el.getAttribute?.("data-node");
-      const cls = el.className ? "." + String(el.className).split(" ").slice(0, 1).join("") : "";
-      return `${el.tagName}${dn ? "[" + dn + "]" : ""}${cls}`;
-    };
-    const foTrace = (e3) => push(`focusout -> related=${nodeDesc(e3.relatedTarget)}`);
-    const fiTrace = (e3) => push(`focusin <- ${nodeDesc(e3.target)}`);
-    traceTarget.addEventListener("focusout", foTrace, true);
-    traceTarget.addEventListener("focusin", fiTrace, true);
-    subs.push({ dispose: () => traceTarget.removeEventListener("focusout", foTrace, true) });
-    subs.push({ dispose: () => traceTarget.removeEventListener("focusin", fiTrace, true) });
     const preedit = attachGhosttyPreedit(term, cell);
     inst.preedit = preedit;
     subs.push({ dispose: () => preedit.dispose() });
     const focusCursor = attachFocusCursor(term, cell);
     subs.push({ dispose: () => focusCursor.dispose() });
-    inst.focusCursor = focusCursor;
     const ro = new ResizeObserver(() => {
       fit.fit();
     });
@@ -3371,8 +3295,6 @@ function mountTerminal(container, ctx, vctx) {
     subs.push({ dispose: () => ro.disconnect() });
     subs.push(
       term.onResize(({ cols, rows }) => {
-        DIAG.onResizeFired += 1;
-        DIAG.ptyResizeSent += 1;
         void pty.resize(ptyId, cols, rows);
       })
     );
@@ -3435,145 +3357,6 @@ var plugin_entry_default = {
       );
     }
     if (app.commands) {
-      ctx.subscriptions.push(
-        app.commands.register("diag", {
-          description: "M0 spike diagnostics \u2014 write-path counters + direct probe (temporary).",
-          params: { paneId: { type: "string", description: "target pane (viewId)" } },
-          message: () => "\uC9C4\uB2E8 \uC2A4\uB0C5\uC0F7\uC785\uB2C8\uB2E4.",
-          handler: (p) => {
-            const want = typeof p.paneId === "string" ? p.paneId : null;
-            const inst = want ? instances.get(want) : [...instances.values()].find((i) => i.term);
-            let probe = {};
-            if (inst?.term) {
-              const t = inst.term;
-              try {
-                t.write("PROBE_XYZ\r\n");
-                const lines = [];
-                for (let y2 = 0; y2 < Math.min(6, t.buffer.active.length); y2++) {
-                  lines.push(t.buffer.active.getLine(y2)?.translateToString(true) ?? "<null>");
-                }
-                probe = {
-                  probeLines: lines,
-                  cursorY: t.buffer.active.cursorY,
-                  viewportY: t.viewportY,
-                  elemSize: t.element ? `${t.element.clientWidth}x${t.element.clientHeight}` : "no-elem"
-                };
-              } catch (e3) {
-                probe = { probeErr: String(e3) };
-              }
-            }
-            return { ok: true, ...DIAG, ...probe };
-          }
-        })
-      );
-      ctx.subscriptions.push(
-        app.commands.register("ime.probe", {
-          description: "M0: synthetic composition probe - draws the preedit and returns geometry diff vs cursor (temporary). phase=show keeps the preview on screen for capture; phase=hide ends it.",
-          params: { paneId: { type: "string" }, text: { type: "string" }, phase: { type: "string" }, selector: { type: "string" } },
-          message: () => "\uD504\uB9AC\uC5D0\uB527 \uAE30\uD558 \uC2A4\uB0C5\uC0F7\uC785\uB2C8\uB2E4.",
-          handler: (p) => {
-            const want = typeof p.paneId === "string" ? p.paneId : null;
-            const inst = want ? instances.get(want) : [...instances.values()].find((i) => i.term);
-            const t = inst?.term;
-            if (!t?.element) return { ok: false, error: "no terminal" };
-            const target = t.element;
-            const text = String(p.text ?? "\uD55C");
-            const phase = String(p.phase ?? "pulse");
-            if (phase === "hide") {
-              target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
-              return { ok: true, phase };
-            }
-            if (phase === "clickother") {
-              const sel = String(p.selector ?? ".xterm-helper-textarea");
-              const other = document.querySelector(sel);
-              if (!other) return { ok: false, error: `no element: ${sel}` };
-              const r2 = other.getBoundingClientRect();
-              const cx = r2.left + Math.max(1, r2.width / 2), cy = r2.top + Math.max(1, r2.height / 2);
-              const before = document.activeElement === target || target.contains(document.activeElement);
-              for (const type of ["mousedown", "mouseup", "click"]) {
-                other.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: cx, clientY: cy }));
-              }
-              return { ok: true, phase, selector: sel, terminalFocusedBefore: before };
-            }
-            if (phase === "clickcanvas") {
-              const canvas = t.element?.querySelector("canvas");
-              if (!canvas) return { ok: false, error: "no canvas" };
-              const r2 = canvas.getBoundingClientRect();
-              const cx = r2.left + r2.width / 2, cy = r2.top + r2.height / 2;
-              for (const type of ["mousedown", "mouseup", "click"]) {
-                canvas.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: cx, clientY: cy }));
-              }
-              return { ok: true, phase, activeAfter: document.activeElement === target || target.contains(document.activeElement) };
-            }
-            if (phase === "domfocus") {
-              target.focus();
-              return { ok: true, phase, active: document.activeElement === target };
-            }
-            if (phase === "focusin" || phase === "focusout") {
-              target.dispatchEvent(new FocusEvent(phase, { bubbles: true }));
-              return { ok: true, phase, focused: inst?.focusCursor?.isFocused(), trace: inst?.focusCursor?.trace() };
-            }
-            if (phase === "topology") {
-              const doc = document;
-              const count = (sel) => doc.querySelectorAll(sel).length;
-              return {
-                ok: true,
-                phase,
-                url: location.href,
-                title: doc.title,
-                ghosttyCells: count('[data-node="terminal"][data-node]'),
-                allTerminalNodes: count('[data-node="terminal"]'),
-                xtermCanvas: count(".xterm, .xterm-screen, .xterm-viewport"),
-                chromeTabStrip: count('[data-node*="tab"], [class*="tab-strip"], [class*="TabStrip"]'),
-                sidebar: count('[class*="sidebar"], [class*="Sidebar"]'),
-                bodyChildren: doc.body?.children.length ?? -1,
-                sampleDataNodes: [...doc.querySelectorAll("[data-node]")].slice(0, 12).map((e3) => e3.getAttribute("data-node"))
-              };
-            }
-            if (phase === "click-away") {
-              target.focus();
-              target.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-              target.dispatchEvent(new CompositionEvent("compositionupdate", { data: "\uD55C", bubbles: true }));
-              const beforeActive = document.activeElement === target || target.contains(document.activeElement);
-              document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-              const afterActive = document.activeElement === target || target.contains(document.activeElement);
-              target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
-              return { ok: true, phase, terminalFocusedBeforeClick: beforeActive, terminalFocusedAfterClick: afterActive, released: beforeActive && !afterActive };
-            }
-            if (phase === "focus-state") {
-              const ae = document.activeElement;
-              const desc = (el) => el ? `${el.tagName}${el.getAttribute("data-node") ? "[" + el.getAttribute("data-node") + "]" : ""}${el.className ? "." + String(el.className).split(" ").slice(0, 2).join(".") : ""}` : "null";
-              return {
-                ok: true,
-                phase,
-                focused: inst?.focusCursor?.isFocused(),
-                trace: inst?.focusCursor?.trace(),
-                activeElement: desc(ae),
-                isTerminalFocused: t.element === ae || t.element?.contains(ae)
-              };
-            }
-            target.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-            target.dispatchEvent(new CompositionEvent("compositionupdate", { data: text, bubbles: true }));
-            const diag = window.__ghosttyPreeditDiag ?? null;
-            if (phase !== "show") target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
-            return { ok: true, phase, diag };
-          }
-        })
-      );
-      ctx.subscriptions.push(
-        app.commands.register("ime.trace", {
-          description: "M0 IME ground-truth trace \u2014 event fingerprint ring buffer (temporary). clear=true empties the buffer for a clean capture.",
-          params: { clear: { type: "boolean" } },
-          message: () => "IME \uC774\uBCA4\uD2B8 \uC9C0\uBB38\uC785\uB2C8\uB2E4.",
-          handler: (p) => {
-            if (p?.clear) {
-              IME_TRACE.splice(0, IME_TRACE.length);
-              return { ok: true, cleared: true };
-            }
-            return { ok: true, trace: IME_TRACE.slice(-140) };
-          }
-        })
-      );
       ctx.subscriptions.push(
         app.commands.register("ping", {
           description: "Load/engine check \u2014 returns the plugin id and engine (E2E).",

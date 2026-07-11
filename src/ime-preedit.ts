@@ -143,6 +143,17 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
   const onWinBlur = (): void => {
     overlay.style.display = "none";
   };
+  // 조합 중 터미널 밖 클릭 삼킴 방지(사용자 확인: 조합 중 다른 탭 클릭 → 글리프는 커밋되나
+  // 그 탭에 포커스가 안 감). 원인: WebKit 은 contenteditable 의 조합 커밋용 첫 mousedown 을
+  // 소비하고 그 포커스 이동을 대상에 전달하지 않는다. capture 단계 pointerdown 에서 조합 요소를
+  // 먼저 blur → 커밋이 앞당겨지고, 같은 클릭의 기본 포커스 이동이 대상(탭)에 정상 도달한다.
+  // 조합 중이 아니면 아무것도 하지 않는다(평범한 클릭 무영향).
+  const onDocDownOutside = (e: Event): void => {
+    if (!composing) return;
+    const t = e.target as Node | null;
+    if (t && target.contains(t)) return; // 터미널 내부 클릭은 그대로
+    (target as HTMLElement).blur();
+  };
 
   target.addEventListener("compositionstart", onStart, true);
   target.addEventListener("compositionupdate", onUpdate, true);
@@ -150,6 +161,10 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
   host.addEventListener("focusout", onFocusOut);
   host.addEventListener("focusin", onFocusIn);
   window.addEventListener("blur", onWinBlur);
+  // pointerdown 이 기본이나(mousedown 보다 먼저), 주입/일부 경로에서 안 날 수 있어 mousedown 도 잡는다.
+  // 이미 blur 됐으면 두 번째는 무해한 no-op.
+  document.addEventListener("pointerdown", onDocDownOutside, true);
+  document.addEventListener("mousedown", onDocDownOutside, true);
 
   return {
     dispose() {
@@ -159,6 +174,8 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
       host.removeEventListener("focusout", onFocusOut);
       host.removeEventListener("focusin", onFocusIn);
       window.removeEventListener("blur", onWinBlur);
+      document.removeEventListener("pointerdown", onDocDownOutside, true);
+      document.removeEventListener("mousedown", onDocDownOutside, true);
       overlay.remove();
       for (const [el, prev] of prevStyles) {
         el.style.fontSize = prev.fontSize;

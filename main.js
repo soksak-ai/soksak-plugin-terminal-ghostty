@@ -3074,12 +3074,20 @@ function attachGhosttyPreedit(term, host) {
   const onWinBlur = () => {
     overlay.style.display = "none";
   };
+  const onDocDownOutside = (e3) => {
+    if (!composing) return;
+    const t = e3.target;
+    if (t && target.contains(t)) return;
+    target.blur();
+  };
   target.addEventListener("compositionstart", onStart, true);
   target.addEventListener("compositionupdate", onUpdate, true);
   target.addEventListener("compositionend", onEnd, true);
   host.addEventListener("focusout", onFocusOut);
   host.addEventListener("focusin", onFocusIn);
   window.addEventListener("blur", onWinBlur);
+  document.addEventListener("pointerdown", onDocDownOutside, true);
+  document.addEventListener("mousedown", onDocDownOutside, true);
   return {
     dispose() {
       target.removeEventListener("compositionstart", onStart, true);
@@ -3088,6 +3096,8 @@ function attachGhosttyPreedit(term, host) {
       host.removeEventListener("focusout", onFocusOut);
       host.removeEventListener("focusin", onFocusIn);
       window.removeEventListener("blur", onWinBlur);
+      document.removeEventListener("pointerdown", onDocDownOutside, true);
+      document.removeEventListener("mousedown", onDocDownOutside, true);
       overlay.remove();
       for (const [el, prev] of prevStyles) {
         el.style.fontSize = prev.fontSize;
@@ -3310,6 +3320,30 @@ function mountTerminal(container, ctx, vctx) {
       IME_TRACE.push(`onData ${JSON.stringify(d2)}`);
       if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120);
     }));
+    const nodeDesc = (n2) => {
+      const el = n2;
+      if (!el || !el.tagName) return String(n2);
+      const dn = el.getAttribute?.("data-node");
+      const cls = el.className ? "." + String(el.className).split(" ").slice(0, 1).join("") : "";
+      return `${el.tagName}${dn ? "[" + dn + "]" : ""}${cls}`;
+    };
+    const push = (line) => {
+      IME_TRACE.push(line);
+      if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120);
+    };
+    const foTrace = (e3) => push(`focusout -> related=${nodeDesc(e3.relatedTarget)}`);
+    const fiTrace = (e3) => push(`focusin <- ${nodeDesc(e3.target)}`);
+    traceTarget.addEventListener("focusout", foTrace, true);
+    traceTarget.addEventListener("focusin", fiTrace, true);
+    subs.push({ dispose: () => traceTarget.removeEventListener("focusout", foTrace, true) });
+    subs.push({ dispose: () => traceTarget.removeEventListener("focusin", fiTrace, true) });
+    const pdTrace = (e3) => {
+      const tgt = e3.target;
+      const inside = tgt ? traceTarget.contains(tgt) : false;
+      push(`pointerdown target=${nodeDesc(tgt)} ${inside ? "INSIDE" : "outside"} active=${nodeDesc(document.activeElement)}`);
+    };
+    document.addEventListener("pointerdown", pdTrace, true);
+    subs.push({ dispose: () => document.removeEventListener("pointerdown", pdTrace, true) });
     const preedit = attachGhosttyPreedit(term, cell);
     subs.push({ dispose: () => preedit.dispose() });
     const focusCursor = attachFocusCursor(term, cell);
@@ -3420,8 +3454,27 @@ var plugin_entry_default = {
               target.dispatchEvent(new FocusEvent(phase, { bubbles: true }));
               return { ok: true, phase, focused: inst?.focusCursor?.isFocused(), trace: inst?.focusCursor?.trace() };
             }
+            if (phase === "click-away") {
+              target.focus();
+              target.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+              target.dispatchEvent(new CompositionEvent("compositionupdate", { data: "\uD55C", bubbles: true }));
+              const beforeActive = document.activeElement === target || target.contains(document.activeElement);
+              document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+              const afterActive = document.activeElement === target || target.contains(document.activeElement);
+              target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
+              return { ok: true, phase, terminalFocusedBeforeClick: beforeActive, terminalFocusedAfterClick: afterActive, released: beforeActive && !afterActive };
+            }
             if (phase === "focus-state") {
-              return { ok: true, phase, focused: inst?.focusCursor?.isFocused(), trace: inst?.focusCursor?.trace() };
+              const ae = document.activeElement;
+              const desc = (el) => el ? `${el.tagName}${el.getAttribute("data-node") ? "[" + el.getAttribute("data-node") + "]" : ""}${el.className ? "." + String(el.className).split(" ").slice(0, 2).join(".") : ""}` : "null";
+              return {
+                ok: true,
+                phase,
+                focused: inst?.focusCursor?.isFocused(),
+                trace: inst?.focusCursor?.trace(),
+                activeElement: desc(ae),
+                isTerminalFocused: t.element === ae || t.element?.contains(ae)
+              };
             }
             target.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
             target.dispatchEvent(new CompositionEvent("compositionupdate", { data: text, bubbles: true }));

@@ -2982,32 +2982,37 @@ For tests, pass a Ghostty instance directly:
 // src/ime-preedit.ts
 function attachGhosttyPreedit(term, host) {
   const target = term.element ?? host;
-  const prevFontSize = target.style.fontSize;
-  const prevColor = target.style.color;
-  const prevCaret = target.style.caretColor;
-  target.style.fontSize = "0px";
-  target.style.color = "transparent";
-  target.style.caretColor = "transparent";
+  const focusables = /* @__PURE__ */ new Set([target]);
+  const tabbed = host.querySelector("[tabindex]");
+  if (tabbed) focusables.add(tabbed);
+  if (target.parentElement && target.parentElement !== host) focusables.add(target.parentElement);
+  const prevStyles = /* @__PURE__ */ new Map();
+  for (const el of focusables) {
+    prevStyles.set(el, { fontSize: el.style.fontSize, color: el.style.color, caret: el.style.caretColor });
+    el.style.fontSize = "0px";
+    el.style.color = "transparent";
+    el.style.caretColor = "transparent";
+  }
   const overlay = document.createElement("div");
   overlay.setAttribute("data-node", "ime-preedit");
   overlay.style.cssText = "position:absolute;z-index:3;pointer-events:none;display:none;white-space:pre;text-decoration:underline;border-radius:2px";
   host.appendChild(overlay);
-  const cellMetrics = () => {
-    const el = term.element;
-    const w = el && term.cols > 0 ? el.clientWidth / term.cols : 8;
-    const h = el && term.rows > 0 ? el.clientHeight / term.rows : 17;
-    return { w: w > 0 ? w : 8, h: h > 0 ? h : 17 };
-  };
   const position = () => {
-    const { w, h } = cellMetrics();
-    const x = term.buffer.active.cursorX * w;
-    const y2 = (term.buffer.active.cursorY - term.getViewportY()) * h;
-    overlay.style.left = `${x}px`;
-    overlay.style.top = `${y2}px`;
+    const canvas = (term.element ?? host).querySelector("canvas");
+    const cRect = (canvas ?? term.element ?? host).getBoundingClientRect();
+    const hRect = host.getBoundingClientRect();
+    const w = term.cols > 0 ? cRect.width / term.cols : 8;
+    const h = term.rows > 0 ? cRect.height / term.rows : 17;
+    const col = term.buffer.active.cursorX;
+    const row = term.buffer.active.cursorY - term.getViewportY();
+    overlay.style.left = `${cRect.left - hRect.left + col * w}px`;
+    overlay.style.top = `${cRect.top - hRect.top + row * h}px`;
+    overlay.style.minWidth = `${w}px`;
+    overlay.style.height = `${h}px`;
     overlay.style.font = `${term.options.fontSize}px ${term.options.fontFamily}`;
     overlay.style.lineHeight = `${h}px`;
-    overlay.style.background = String(term.options.theme?.background ?? "var(--bg)");
-    overlay.style.color = String(term.options.theme?.foreground ?? "var(--fg)");
+    overlay.style.background = String(term.options.theme?.cursor ?? "var(--acc)");
+    overlay.style.color = String(term.options.theme?.background ?? "var(--bg)");
   };
   let composing = false;
   const onStart = () => {
@@ -3039,9 +3044,11 @@ function attachGhosttyPreedit(term, host) {
       target.removeEventListener("compositionupdate", onUpdate, true);
       target.removeEventListener("compositionend", onEnd, true);
       overlay.remove();
-      target.style.fontSize = prevFontSize;
-      target.style.color = prevColor;
-      target.style.caretColor = prevCaret;
+      for (const [el, prev] of prevStyles) {
+        el.style.fontSize = prev.fontSize;
+        el.style.color = prev.color;
+        el.style.caretColor = prev.caret;
+      }
     }
   };
 }

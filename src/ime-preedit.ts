@@ -18,13 +18,19 @@ export interface PreeditHandle {
 export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): PreeditHandle {
   const target = term.element ?? host;
 
-  // 브라우저 조합 노드 무광화 — 컨테이너 직속 텍스트 노드만 영향(캔버스는 픽셀이라 무관).
-  const prevFontSize = target.style.fontSize;
-  const prevColor = target.style.color;
-  const prevCaret = target.style.caretColor;
-  target.style.fontSize = "0px";
-  target.style.color = "transparent";
-  target.style.caretColor = "transparent";
+  // 조합 노드가 실제로 삽입되는 요소 = InputHandler 의 컨테이너(tabindex 부여됨).
+  // term.element 와 다를 수 있어 런타임에서 발견해 무광화한다(실기기: element 만 처리 시 유령 잔존).
+  const focusables = new Set<HTMLElement>([target]);
+  const tabbed = host.querySelector<HTMLElement>('[tabindex]');
+  if (tabbed) focusables.add(tabbed);
+  if (target.parentElement && target.parentElement !== host) focusables.add(target.parentElement);
+  const prevStyles = new Map<HTMLElement, { fontSize: string; color: string; caret: string }>();
+  for (const el of focusables) {
+    prevStyles.set(el, { fontSize: el.style.fontSize, color: el.style.color, caret: el.style.caretColor });
+    el.style.fontSize = "0px";
+    el.style.color = "transparent";
+    el.style.caretColor = "transparent";
+  }
 
   // 프리뷰 오버레이 — 터미널과 같은 폰트/크기, 테마 토큰 소비(P7), 언더라인으로 조합 중임을 표기.
   const overlay = document.createElement("div");
@@ -34,24 +40,24 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
     "text-decoration:underline;border-radius:2px";
   host.appendChild(overlay);
 
-  const cellMetrics = (): { w: number; h: number } => {
-    // 셀 크기 = 캔버스 논리 크기 / cols·rows. 캔버스가 아직 0 이면 폰트 근사.
-    const el = term.element;
-    const w = el && term.cols > 0 ? el.clientWidth / term.cols : 8;
-    const h = el && term.rows > 0 ? el.clientHeight / term.rows : 17;
-    return { w: w > 0 ? w : 8, h: h > 0 ? h : 17 };
-  };
-
+  // 격자 기하 = 캔버스 실측(getBoundingClientRect). element 는 패딩·여백이 섞여 어긋난다(실기기).
   const position = (): void => {
-    const { w, h } = cellMetrics();
-    const x = term.buffer.active.cursorX * w;
-    const y = (term.buffer.active.cursorY - term.getViewportY()) * h;
-    overlay.style.left = `${x}px`;
-    overlay.style.top = `${y}px`;
+    const canvas = (term.element ?? host).querySelector("canvas");
+    const cRect = (canvas ?? term.element ?? host).getBoundingClientRect();
+    const hRect = host.getBoundingClientRect();
+    const w = term.cols > 0 ? cRect.width / term.cols : 8;
+    const h = term.rows > 0 ? cRect.height / term.rows : 17;
+    const col = term.buffer.active.cursorX;
+    const row = term.buffer.active.cursorY - term.getViewportY();
+    // 커서 셀 "위"에 겹친다 — 배경을 채워 아래의 커서 블록을 덮는다(조합 = 커서 자리 삽입 예정 표시).
+    overlay.style.left = `${cRect.left - hRect.left + col * w}px`;
+    overlay.style.top = `${cRect.top - hRect.top + row * h}px`;
+    overlay.style.minWidth = `${w}px`;
+    overlay.style.height = `${h}px`;
     overlay.style.font = `${term.options.fontSize}px ${term.options.fontFamily}`;
     overlay.style.lineHeight = `${h}px`;
-    overlay.style.background = String(term.options.theme?.background ?? "var(--bg)");
-    overlay.style.color = String(term.options.theme?.foreground ?? "var(--fg)");
+    overlay.style.background = String(term.options.theme?.cursor ?? "var(--acc)");
+    overlay.style.color = String(term.options.theme?.background ?? "var(--bg)");
   };
 
   let composing = false;
@@ -86,9 +92,11 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
       target.removeEventListener("compositionupdate", onUpdate, true);
       target.removeEventListener("compositionend", onEnd, true);
       overlay.remove();
-      target.style.fontSize = prevFontSize;
-      target.style.color = prevColor;
-      target.style.caretColor = prevCaret;
+      for (const [el, prev] of prevStyles) {
+        el.style.fontSize = prev.fontSize;
+        el.style.color = prev.color;
+        el.style.caretColor = prev.caret;
+      }
     },
   };
 }

@@ -131,17 +131,6 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(0, hCss - ul, wCss, ul);
     overlay.style.display = "block";
-    // 진단 스냅샷(M0) — 커서 rect(렌더러 수식)와의 대조용.
-    (window as unknown as Record<string, unknown>).__ghosttyPreeditDiag = {
-      overlay: { left: overlay.style.left, top: overlay.style.top, wCss, hCss },
-      metrics: { ...m },
-      cursor: { x: col * m.width, y: row * m.height, w: m.width, h: m.height },
-      canvasRect: { left: cRect.left, top: cRect.top, w: cRect.width, h: cRect.height },
-      hostRect: { left: hRect.left, top: hRect.top },
-      dpr: window.devicePixelRatio,
-      font,
-      advance,
-    };
   };
 
   const composition = new CompositionCommitState();

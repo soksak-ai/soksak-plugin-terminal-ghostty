@@ -57,27 +57,6 @@
           "ko": "핑",
           "en": "Ping"
         }
-      },
-      {
-        "name": "diag",
-        "title": {
-          "ko": "진단(임시)",
-          "en": "Diag (temp)"
-        }
-      },
-      {
-        "name": "ime.trace",
-        "title": {
-          "ko": "IME 지문(임시)",
-          "en": "IME trace (temp)"
-        }
-      },
-      {
-        "name": "ime.probe",
-        "title": {
-          "ko": "IME 프로브(임시)",
-          "en": "IME probe (temp)"
-        }
       }
     ],
     "nodes": [

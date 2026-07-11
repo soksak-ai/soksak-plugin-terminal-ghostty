@@ -8,10 +8,6 @@ import type { Terminal } from "ghostty-web";
 
 export interface FocusCursorHandle {
   dispose(): void;
-  /** 현재 판정 상태(진단용) */
-  isFocused(): boolean;
-  /** 최근 포커스 이벤트 로그(진단용, M0 임시) */
-  trace(): string[];
 }
 
 interface RendererCursorSurface {
@@ -24,16 +20,10 @@ interface RendererCursorSurface {
 
 export function attachFocusCursor(term: Terminal, host: HTMLElement): FocusCursorHandle {
   const r = term.renderer as unknown as RendererCursorSurface | undefined;
-  if (!r || typeof r.renderCursor !== "function")
-    return { dispose() {}, isFocused: () => false, trace: () => ["no renderer"] };
+  if (!r || typeof r.renderCursor !== "function") return { dispose() {} };
 
   const original = r.renderCursor; // 프로토타입 메서드 — dispose 시 own property 삭제로 복원
   let focused = host.contains(document.activeElement);
-  const log: string[] = [`init focused=${focused}`];
-  const note = (m: string): void => {
-    log.push(m);
-    if (log.length > 40) log.splice(0, log.length - 40);
-  };
   // 포커스 변경은 렌더러 dirty 상태에 없다 — 커서 픽셀이 다음 콘텐츠 변경까지 스테일(실측).
   // 렌더러 자신의 커서 이동 무효화 경로를 재사용한다: lastCursorPosition 불일치 →
   // 다음 프레임에 커서 행 renderLine(구 커서 지움) + renderCursor(신 상태). 폴링·강제 풀리드로 없음.
@@ -56,14 +46,12 @@ export function attachFocusCursor(term: Terminal, host: HTMLElement): FocusCurso
   };
 
   // 렌더루프는 상시 rAF 라 상태만 바꾸면 다음 프레임에 반영된다(추가 무효화 불요).
-  const onFocusIn = (e: Event): void => {
+  const onFocusIn = (): void => {
     focused = true;
-    note(`focusin <- ${(e.target as HTMLElement)?.tagName}`);
     repaintCursor();
   };
-  const onFocusOut = (e: Event): void => {
+  const onFocusOut = (): void => {
     focused = false;
-    note(`focusout <- ${(e.target as HTMLElement)?.tagName}`);
     repaintCursor();
   };
   // 리스너는 이 플러그인 소유 host 에만 건다 — 공유 window/document 오염 금지(R7).
@@ -76,7 +64,5 @@ export function attachFocusCursor(term: Terminal, host: HTMLElement): FocusCurso
       host.removeEventListener("focusout", onFocusOut);
       delete (r as { renderCursor?: unknown }).renderCursor; // 프로토타입 메서드로 복원
     },
-    isFocused: () => focused,
-    trace: () => [...log],
   };
 }

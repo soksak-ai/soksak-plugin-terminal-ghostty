@@ -18,8 +18,9 @@ interface Instance {
 const instances = new Map<string, Instance>();
 // M0 진단 — write 경로 계측(스파이크 전용, 게이트 판정 후 제거).
 const DIAG = { writes: 0, writeBytes: 0, writeCb: 0, lastErr: "", bufferLen: -1, cols: 0, rows: 0, wasm: false, onResizeFired: 0, ptyResizeSent: 0 };
-// IME 이벤트 지문(실기기 채집 — ime.trace 로 회수). 링버퍼 120줄.
+// IME 이벤트 지문(실기기 채집 — ime.trace 로 회수). 링버퍼. 이 인스턴스 소유 DOM 이벤트만 기록한다.
 const IME_TRACE: string[] = [];
+const traceLine = (line: string): void => { IME_TRACE.push(line); if (IME_TRACE.length > 160) IME_TRACE.splice(0, IME_TRACE.length - 160); };
 
 // WASM 공유 인스턴스 init(1회) — ghostty-web 은 WASM 을 base64 data URL 로 자체 인라인하므로
 // 경로 해석 0(P8). 실패는 mount 에서 status 로 표면화한다.
@@ -178,19 +179,20 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     // 올바른 가드 설계를 위해 원조 애드온과 같은 방법론: 실기기 이벤트 지문을 먼저 채집한다.
     // (M0 임시 — ime.trace 커맨드로 회수, 판정 후 제거)
     const traceTarget = term.element ?? cell;
+    const tag = viewId; // 인스턴스 식별 — 어느 터미널의 이벤트인지 구분(멀티 인스턴스 필수)
+    const push = (line: string): void => traceLine(`[${tag}] ${line}`);
     const trace = (kind: string) => (e: Event) => {
       const ie = e as InputEvent & KeyboardEvent & CompositionEvent;
-      IME_TRACE.push(
+      push(
         `${kind}${ie.inputType ? ":" + ie.inputType : ""}${ie.key ? " key=" + ie.key : ""}${ie.keyCode ? " kc=" + ie.keyCode : ""}${"data" in ie && ie.data != null ? " data=" + JSON.stringify(ie.data) : ""}${ie.isComposing ? " composing" : ""}`,
       );
-      if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120);
     };
     for (const ev of ["keydown", "beforeinput", "input", "compositionstart", "compositionupdate", "compositionend"]) {
       const h = trace(ev);
       traceTarget.addEventListener(ev, h, true);
       subs.push({ dispose: () => traceTarget.removeEventListener(ev, h, true) });
     }
-    subs.push(term.onData((d) => { IME_TRACE.push(`onData ${JSON.stringify(d)}`); if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120); }));
+    subs.push(term.onData((d) => push(`onData ${JSON.stringify(d)}`)));
     // 포커스/포인터 흐름 지문(조합 중 클릭 삼킴 진단) — 대상 요소 식별자 포함.
     const nodeDesc = (n: EventTarget | null): string => {
       const el = n as HTMLElement | null;
@@ -199,20 +201,13 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
       const cls = el.className ? "." + String(el.className).split(" ").slice(0, 1).join("") : "";
       return `${el.tagName}${dn ? "[" + dn + "]" : ""}${cls}`;
     };
-    const push = (line: string): void => { IME_TRACE.push(line); if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120); };
+    // focusout/in 은 term.element 에서만 유효 — 이 인스턴스 소유 이벤트만 기록됨.
     const foTrace = (e: Event) => push(`focusout -> related=${nodeDesc((e as FocusEvent).relatedTarget)}`);
     const fiTrace = (e: Event) => push(`focusin <- ${nodeDesc(e.target)}`);
     traceTarget.addEventListener("focusout", foTrace, true);
     traceTarget.addEventListener("focusin", fiTrace, true);
     subs.push({ dispose: () => traceTarget.removeEventListener("focusout", foTrace, true) });
     subs.push({ dispose: () => traceTarget.removeEventListener("focusin", fiTrace, true) });
-    const pdTrace = (e: Event) => {
-      const tgt = e.target as Node | null;
-      const inside = tgt ? traceTarget.contains(tgt) : false;
-      push(`pointerdown target=${nodeDesc(tgt)} ${inside ? "INSIDE" : "outside"} active=${nodeDesc(document.activeElement)}`);
-    };
-    document.addEventListener("pointerdown", pdTrace, true);
-    subs.push({ dispose: () => document.removeEventListener("pointerdown", pdTrace, true) });
     // 조합 프리뷰 커서 정합(실기기 지문 기반 — ime-preedit.ts 머리 주석 참조).
     const preedit = attachGhosttyPreedit(term, cell);
     subs.push({ dispose: () => preedit.dispose() });
@@ -332,10 +327,45 @@ export default {
               target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
               return { ok: true, phase };
             }
+            if (phase === "clickcanvas") {
+              // 실제 클릭 경로 재현: 대상 인스턴스 canvas 에 mousedown/mouseup/click 디스패치
+              // (ghostty-web canvas 핸들러: preventDefault + textarea.focus → parentElement.focus).
+              const canvas = t.element?.querySelector("canvas") as HTMLElement | null;
+              if (!canvas) return { ok: false, error: "no canvas" };
+              const r = canvas.getBoundingClientRect();
+              const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+              for (const type of ["mousedown", "mouseup", "click"]) {
+                canvas.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: cx, clientY: cy }));
+              }
+              return { ok: true, phase, activeAfter: document.activeElement === target || target.contains(document.activeElement) };
+            }
+            if (phase === "domfocus") {
+              // 실제 DOM 포커스 이동(클릭 대신) — 대상 패널을 focus 하면 이전 패널은 진짜 focusout 을 받는다.
+              target.focus();
+              return { ok: true, phase, active: document.activeElement === target };
+            }
             if (phase === "focusin" || phase === "focusout") {
               // 포커스 커서 경로 검증(cursor-focus.ts) — host 리스너까지 버블.
               target.dispatchEvent(new FocusEvent(phase, { bubbles: true }));
               return { ok: true, phase, focused: inst?.focusCursor?.isFocused(), trace: inst?.focusCursor?.trace() };
+            }
+            if (phase === "topology") {
+              // 이 webview 의 DOM 구성 조사 — chrome/xterm/ghostty 가 같은 문서에 있나(webview 경계 확정).
+              const doc = document;
+              const count = (sel: string) => doc.querySelectorAll(sel).length;
+              return {
+                ok: true,
+                phase,
+                url: location.href,
+                title: doc.title,
+                ghosttyCells: count('[data-node="terminal"][data-node]'),
+                allTerminalNodes: count('[data-node="terminal"]'),
+                xtermCanvas: count(".xterm, .xterm-screen, .xterm-viewport"),
+                chromeTabStrip: count('[data-node*="tab"], [class*="tab-strip"], [class*="TabStrip"]'),
+                sidebar: count('[class*="sidebar"], [class*="Sidebar"]'),
+                bodyChildren: doc.body?.children.length ?? -1,
+                sampleDataNodes: [...doc.querySelectorAll("[data-node]")].slice(0, 12).map((e) => (e as HTMLElement).getAttribute("data-node")),
+              };
             }
             if (phase === "click-away") {
               // 배선 검증: 조합 활성 상태에서 터미널 밖 pointerdown → 조합 요소가 blur 되는가.
@@ -372,9 +402,13 @@ export default {
       );
       ctx.subscriptions.push(
         app.commands.register("ime.trace", {
-          description: "M0 IME ground-truth trace — event fingerprint ring buffer (temporary).",
+          description: "M0 IME ground-truth trace — event fingerprint ring buffer (temporary). clear=true empties the buffer for a clean capture.",
+          params: { clear: { type: "boolean" } },
           message: () => "IME 이벤트 지문입니다.",
-          handler: () => ({ ok: true, trace: IME_TRACE.slice(-80) }),
+          handler: (p) => {
+            if (p?.clear) { IME_TRACE.splice(0, IME_TRACE.length); return { ok: true, cleared: true }; }
+            return { ok: true, trace: IME_TRACE.slice(-140) };
+          },
         }),
       );
       ctx.subscriptions.push(

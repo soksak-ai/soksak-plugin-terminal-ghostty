@@ -136,46 +136,31 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
   // 복귀 후 조합이 살아 있으면 focusin/다음 compositionupdate 가 되살린다.
   const onFocusOut = (): void => {
     overlay.style.display = "none";
+    // WebKit 은 조합 중 blur 시 compositionend 를 발화하지 않는다(WebKit #164369) → 조합 텍스트
+    // 유실. 포커스가 떠나기 전 마지막 조합 데이터로 compositionend 를 합성 발화해 정상 커밋
+    // 경로(ghostty-web handleCompositionEnd → onData → pty)를 태운다. WebKit 이 이미 커밋했으면
+    // (실 compositionend 발화 → onEnd 로 composing=false) 이 가드가 false 라 이중 커밋을 막는다.
+    if (composing && lastData) {
+      target.dispatchEvent(new CompositionEvent("compositionend", { data: lastData, bubbles: true }));
+    }
   };
   const onFocusIn = (): void => {
     if (composing && lastData) draw(lastData);
   };
-  const onWinBlur = (): void => {
-    overlay.style.display = "none";
-  };
-  // 조합 중 터미널 밖 클릭 삼킴 방지(사용자 확인: 조합 중 다른 탭 클릭 → 글리프는 커밋되나
-  // 그 탭에 포커스가 안 감). 원인: WebKit 은 contenteditable 의 조합 커밋용 첫 mousedown 을
-  // 소비하고 그 포커스 이동을 대상에 전달하지 않는다. capture 단계 pointerdown 에서 조합 요소를
-  // 먼저 blur → 커밋이 앞당겨지고, 같은 클릭의 기본 포커스 이동이 대상(탭)에 정상 도달한다.
-  // 조합 중이 아니면 아무것도 하지 않는다(평범한 클릭 무영향).
-  const onDocDownOutside = (e: Event): void => {
-    if (!composing) return;
-    const t = e.target as Node | null;
-    if (t && target.contains(t)) return; // 터미널 내부 클릭은 그대로
-    (target as HTMLElement).blur();
-  };
-
+  // 리스너는 이 플러그인 소유 DOM(target=term.element)에만 건다 — 공유 webview(document) 오염 금지(R7).
   target.addEventListener("compositionstart", onStart, true);
   target.addEventListener("compositionupdate", onUpdate, true);
   target.addEventListener("compositionend", onEnd, true);
-  host.addEventListener("focusout", onFocusOut);
-  host.addEventListener("focusin", onFocusIn);
-  window.addEventListener("blur", onWinBlur);
-  // pointerdown 이 기본이나(mousedown 보다 먼저), 주입/일부 경로에서 안 날 수 있어 mousedown 도 잡는다.
-  // 이미 blur 됐으면 두 번째는 무해한 no-op.
-  document.addEventListener("pointerdown", onDocDownOutside, true);
-  document.addEventListener("mousedown", onDocDownOutside, true);
+  target.addEventListener("focusout", onFocusOut, true);
+  target.addEventListener("focusin", onFocusIn, true);
 
   return {
     dispose() {
       target.removeEventListener("compositionstart", onStart, true);
       target.removeEventListener("compositionupdate", onUpdate, true);
       target.removeEventListener("compositionend", onEnd, true);
-      host.removeEventListener("focusout", onFocusOut);
-      host.removeEventListener("focusin", onFocusIn);
-      window.removeEventListener("blur", onWinBlur);
-      document.removeEventListener("pointerdown", onDocDownOutside, true);
-      document.removeEventListener("mousedown", onDocDownOutside, true);
+      target.removeEventListener("focusout", onFocusOut, true);
+      target.removeEventListener("focusin", onFocusIn, true);
       overlay.remove();
       for (const [el, prev] of prevStyles) {
         el.style.fontSize = prev.fontSize;

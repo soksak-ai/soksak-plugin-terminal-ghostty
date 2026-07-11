@@ -20,6 +20,15 @@ interface RendererMetrics {
   baseline: number;
 }
 
+// 렌더러가 draw 에 실제 사용하는 필드들 — term.options 가 아니라 이것이 단일 진실.
+// (renderCellText: ctx.font = `${fontSize}px ${fontFamily}` / renderCursor: theme.cursor)
+interface RendererTruth {
+  metrics?: RendererMetrics;
+  fontSize?: number;
+  fontFamily?: string;
+  theme?: { cursor?: string; background?: string };
+}
+
 const isWide = (cp: number): boolean =>
   (cp >= 0x1100 && cp <= 0x115f) ||
   (cp >= 0x2e80 && cp <= 0xa4cf) ||
@@ -58,16 +67,13 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
   overlay.style.cssText = "position:absolute;z-index:3;pointer-events:none;display:none";
   host.appendChild(overlay);
 
-  const rendererMetrics = (): RendererMetrics | null => {
-    const r = term.renderer as unknown as { metrics?: RendererMetrics } | undefined;
-    const m = r?.metrics;
-    return m && m.width > 0 && m.height > 0 ? m : null;
-  };
+  const renderer = (): RendererTruth | undefined => term.renderer as unknown as RendererTruth | undefined;
 
   const draw = (data: string): void => {
-    const m = rendererMetrics();
+    const r = renderer();
+    const m = r?.metrics;
     const canvasEl = (term.element ?? host).querySelector("canvas");
-    if (!m || !canvasEl) return;
+    if (!m || !(m.width > 0) || !(m.height > 0) || !canvasEl) return;
     const cRect = canvasEl.getBoundingClientRect();
     const hRect = host.getBoundingClientRect();
     const col = term.buffer.active.cursorX;
@@ -84,16 +90,34 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
     overlay.style.top = `${cRect.top - hRect.top + row * m.height}px`;
     const ctx = overlay.getContext("2d")!;
     ctx.scale(dpr, dpr);
+    ctx.textBaseline = "alphabetic"; // 렌더러와 동일(명시)
     // 커서색 배경(커서 셀을 덮는다 — 조합이 커서 자리 삽입 예정임을 표시) + 배경색 글자.
-    ctx.fillStyle = String(term.options.theme?.cursor ?? "#3b82f6");
+    // 색·폰트는 렌더러 자신의 필드에서 읽는다(term.options 는 구성 시점 값 — 어긋날 수 있음).
+    const cursorColor = r?.theme?.cursor ?? String(term.options.theme?.cursor ?? "#3b82f6");
+    const bgColor = r?.theme?.background ?? String(term.options.theme?.background ?? "#fff");
+    const font = `${r?.fontSize ?? term.options.fontSize}px ${r?.fontFamily ?? term.options.fontFamily}`;
+    ctx.fillStyle = cursorColor;
     ctx.fillRect(0, 0, wCss, hCss);
-    ctx.fillStyle = String(term.options.theme?.background ?? "#fff");
-    ctx.font = `${term.options.fontSize}px ${term.options.fontFamily}`;
-    ctx.fillText(data, 0, m.baseline); // 렌더러와 동일: y = baseline
-    // 조합 중 표기(언더라인) — 렌더러 underline 스타일과 동형(하단 15%).
-    const ul = Math.max(2, Math.floor(hCss * 0.1));
+    ctx.fillStyle = bgColor;
+    ctx.font = font;
+    ctx.fillText(data, 0, m.baseline); // 렌더러 renderCellText 와 동일: x=셀 좌단, y=baseline, maxWidth 없음
+    // 조합 중 표기(언더라인) — 배경색으로 그리면 박스가 잘려 보인다(실측: 30행 중 4행이
+    // 배경에 녹아 커서보다 작아 보임 — 결함 ②). 커서색 위 반투명 어두운 띠로: 박스는
+    // 커서와 동일한 1셀 높이로 읽히고, 띠는 어느 테마·커서색에서도 조합 중임을 표시한다.
+    const ul = Math.max(2, Math.floor(hCss * 0.15));
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(0, hCss - ul, wCss, ul);
     overlay.style.display = "block";
+    // 진단 스냅샷(M0) — 커서 rect(렌더러 수식)와의 대조용.
+    (window as unknown as Record<string, unknown>).__ghosttyPreeditDiag = {
+      overlay: { left: overlay.style.left, top: overlay.style.top, wCss, hCss },
+      metrics: { ...m },
+      cursor: { x: col * m.width, y: row * m.height, w: m.width, h: m.height },
+      canvasRect: { left: cRect.left, top: cRect.top, w: cRect.width, h: cRect.height },
+      hostRect: { left: hRect.left, top: hRect.top },
+      dpr: window.devicePixelRatio,
+      font,
+    };
   };
 
   let composing = false;

@@ -71,6 +71,13 @@
           "ko": "IME 지문(임시)",
           "en": "IME trace (temp)"
         }
+      },
+      {
+        "name": "ime.probe",
+        "title": {
+          "ko": "IME 프로브(임시)",
+          "en": "IME probe (temp)"
+        }
       }
     ],
     "nodes": [

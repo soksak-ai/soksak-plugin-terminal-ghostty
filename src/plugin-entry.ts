@@ -3,6 +3,7 @@
 // PTY 는 코어 app.pty 단일 진실(P2) — 이 플러그인은 렌더러만 소유한다.
 import { init, Terminal, FitAddon } from "ghostty-web";
 import { attachGhosttyPreedit } from "./ime-preedit";
+import { attachFocusCursor } from "./cursor-focus";
 import type { PluginContext, PluginViewContext, Disposable } from "./host";
 
 // 플로우 컨트롤 — 5000B 처리 후 ACK(코어 pty.rs 가 짝).
@@ -11,6 +12,7 @@ const FLOW_ACK_SIZE = 5000;
 interface Instance {
   ptyId: number | null;
   term?: Terminal;
+  focusCursor?: import("./cursor-focus").FocusCursorHandle;
   dispose: () => void;
 }
 const instances = new Map<string, Instance>();
@@ -192,6 +194,10 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     // 조합 프리뷰 커서 정합(실기기 지문 기반 — ime-preedit.ts 머리 주석 참조).
     const preedit = attachGhosttyPreedit(term, cell);
     subs.push({ dispose: () => preedit.dispose() });
+    // 포커스 in/out 커서 구분(비포커스=중공) — cursor-focus.ts 머리 주석 참조.
+    const focusCursor = attachFocusCursor(term, cell);
+    subs.push({ dispose: () => focusCursor.dispose() });
+    inst.focusCursor = focusCursor;
     // 리사이즈: 컨테이너 관찰 → fit → PTY SIGWINCH.
     const ro = new ResizeObserver(() => {
       fit.fit();
@@ -284,6 +290,39 @@ export default {
               }
             }
             return { ok: true, ...DIAG, ...probe };
+          },
+        }),
+      );
+      ctx.subscriptions.push(
+        app.commands.register("ime.probe", {
+          description: "M0: synthetic composition probe - draws the preedit and returns geometry diff vs cursor (temporary). phase=show keeps the preview on screen for capture; phase=hide ends it.",
+          params: { paneId: { type: "string" }, text: { type: "string" }, phase: { type: "string" } },
+          message: () => "프리에딧 기하 스냅샷입니다.",
+          handler: (p) => {
+            const want = typeof p.paneId === "string" ? (p.paneId as string) : null;
+            const inst = want ? instances.get(want) : [...instances.values()].find((i) => i.term);
+            const t = inst?.term;
+            if (!t?.element) return { ok: false, error: "no terminal" };
+            const target = t.element;
+            const text = String(p.text ?? "한");
+            const phase = String(p.phase ?? "pulse");
+            if (phase === "hide") {
+              target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
+              return { ok: true, phase };
+            }
+            if (phase === "focusin" || phase === "focusout") {
+              // 포커스 커서 경로 검증(cursor-focus.ts) — host 리스너까지 버블.
+              target.dispatchEvent(new FocusEvent(phase, { bubbles: true }));
+              return { ok: true, phase, focused: inst?.focusCursor?.isFocused(), trace: inst?.focusCursor?.trace() };
+            }
+            if (phase === "focus-state") {
+              return { ok: true, phase, focused: inst?.focusCursor?.isFocused(), trace: inst?.focusCursor?.trace() };
+            }
+            target.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+            target.dispatchEvent(new CompositionEvent("compositionupdate", { data: text, bubbles: true }));
+            const diag = (window as unknown as Record<string, unknown>).__ghosttyPreeditDiag ?? null;
+            if (phase !== "show") target.dispatchEvent(new CompositionEvent("compositionend", { data: "", bubbles: true }));
+            return { ok: true, phase, diag };
           },
         }),
       );

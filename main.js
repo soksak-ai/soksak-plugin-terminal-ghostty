@@ -2983,6 +2983,7 @@ For tests, pass a Ghostty instance directly:
 var FLOW_ACK_SIZE = 5e3;
 var instances = /* @__PURE__ */ new Map();
 var DIAG = { writes: 0, writeBytes: 0, writeCb: 0, lastErr: "", bufferLen: -1, cols: 0, rows: 0, wasm: false, onResizeFired: 0, ptyResizeSent: 0 };
+var IME_TRACE = [];
 var initP = null;
 var ensureInit = () => initP ??= oA();
 function mountTerminal(container, ctx, vctx) {
@@ -3088,6 +3089,23 @@ function mountTerminal(container, ctx, vctx) {
       })
     );
     subs.push(term.onData((data) => void pty.write(ptyId, data)));
+    const traceTarget = term.element ?? cell;
+    const trace = (kind) => (e3) => {
+      const ie = e3;
+      IME_TRACE.push(
+        `${kind}${ie.inputType ? ":" + ie.inputType : ""}${ie.key ? " key=" + ie.key : ""}${ie.keyCode ? " kc=" + ie.keyCode : ""}${"data" in ie && ie.data != null ? " data=" + JSON.stringify(ie.data) : ""}${ie.isComposing ? " composing" : ""}`
+      );
+      if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120);
+    };
+    for (const ev of ["keydown", "beforeinput", "input", "compositionstart", "compositionupdate", "compositionend"]) {
+      const h = trace(ev);
+      traceTarget.addEventListener(ev, h, true);
+      subs.push({ dispose: () => traceTarget.removeEventListener(ev, h, true) });
+    }
+    subs.push(term.onData((d2) => {
+      IME_TRACE.push(`onData ${JSON.stringify(d2)}`);
+      if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120);
+    }));
     const ro = new ResizeObserver(() => {
       fit.fit();
     });
@@ -3170,6 +3188,13 @@ var plugin_entry_default = {
             }
             return { ok: true, ...DIAG, ...probe };
           }
+        })
+      );
+      ctx.subscriptions.push(
+        app.commands.register("ime.trace", {
+          description: "M0 IME ground-truth trace \u2014 event fingerprint ring buffer (temporary).",
+          message: () => "IME \uC774\uBCA4\uD2B8 \uC9C0\uBB38\uC785\uB2C8\uB2E4.",
+          handler: () => ({ ok: true, trace: IME_TRACE.slice(-80) })
         })
       );
       ctx.subscriptions.push(

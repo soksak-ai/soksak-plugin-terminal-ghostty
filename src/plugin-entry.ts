@@ -15,6 +15,8 @@ interface Instance {
 const instances = new Map<string, Instance>();
 // M0 진단 — write 경로 계측(스파이크 전용, 게이트 판정 후 제거).
 const DIAG = { writes: 0, writeBytes: 0, writeCb: 0, lastErr: "", bufferLen: -1, cols: 0, rows: 0, wasm: false, onResizeFired: 0, ptyResizeSent: 0 };
+// IME 이벤트 지문(실기기 채집 — ime.trace 로 회수). 링버퍼 120줄.
+const IME_TRACE: string[] = [];
 
 // WASM 공유 인스턴스 init(1회) — ghostty-web 은 WASM 을 base64 data URL 로 자체 인라인하므로
 // 경로 해석 0(P8). 실패는 mount 에서 status 로 표면화한다.
@@ -140,10 +142,24 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     );
     // 입력: term → PTY.
     subs.push(term.onData((data) => void pty.write(ptyId, data)));
-    // 한글 IME — [보류] kit 애드온 직부착은 이중 처리를 만든다(실기기 악화 확인: 백스페이스
-    // 삼킴 + 프리뷰 미이동). 애드온의 가드는 xterm 의 이벤트 순서·조합 소유권(xterm 은 표준
-    // 경로를 CompositionHelper 에 위임) 전제인데, ghostty-web 은 InputHandler 가 composition
-    // 이벤트를 자체 소유한다 — 통합은 그 소유권 분석 후 재설계(아래 조사로 진행).
+    // 한글 IME — ghostty-web 은 컨테이너 div 가 조합을 직접 받는다(브라우저가 조합 텍스트
+    // 노드를 컨테이너에 삽입 → 좌상단 표시의 원인; compositionend 가 노드 청소 + onData 커밋).
+    // 올바른 가드 설계를 위해 원조 애드온과 같은 방법론: 실기기 이벤트 지문을 먼저 채집한다.
+    // (M0 임시 — ime.trace 커맨드로 회수, 판정 후 제거)
+    const traceTarget = term.element ?? cell;
+    const trace = (kind: string) => (e: Event) => {
+      const ie = e as InputEvent & KeyboardEvent & CompositionEvent;
+      IME_TRACE.push(
+        `${kind}${ie.inputType ? ":" + ie.inputType : ""}${ie.key ? " key=" + ie.key : ""}${ie.keyCode ? " kc=" + ie.keyCode : ""}${"data" in ie && ie.data != null ? " data=" + JSON.stringify(ie.data) : ""}${ie.isComposing ? " composing" : ""}`,
+      );
+      if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120);
+    };
+    for (const ev of ["keydown", "beforeinput", "input", "compositionstart", "compositionupdate", "compositionend"]) {
+      const h = trace(ev);
+      traceTarget.addEventListener(ev, h, true);
+      subs.push({ dispose: () => traceTarget.removeEventListener(ev, h, true) });
+    }
+    subs.push(term.onData((d) => { IME_TRACE.push(`onData ${JSON.stringify(d)}`); if (IME_TRACE.length > 120) IME_TRACE.splice(0, IME_TRACE.length - 120); }));
     // 리사이즈: 컨테이너 관찰 → fit → PTY SIGWINCH.
     const ro = new ResizeObserver(() => {
       fit.fit();
@@ -237,6 +253,13 @@ export default {
             }
             return { ok: true, ...DIAG, ...probe };
           },
+        }),
+      );
+      ctx.subscriptions.push(
+        app.commands.register("ime.trace", {
+          description: "M0 IME ground-truth trace — event fingerprint ring buffer (temporary).",
+          message: () => "IME 이벤트 지문입니다.",
+          handler: () => ({ ok: true, trace: IME_TRACE.slice(-80) }),
         }),
       );
       ctx.subscriptions.push(

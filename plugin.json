@@ -60,6 +60,13 @@
           "ko": "진단(임시)",
           "en": "Diag (temp)"
         }
+      },
+      {
+        "name": "ime.trace",
+        "title": {
+          "ko": "IME 지문(임시)",
+          "en": "IME trace (temp)"
+        }
       }
     ],
     "nodes": [

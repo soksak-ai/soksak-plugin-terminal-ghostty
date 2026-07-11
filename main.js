@@ -2980,6 +2980,12 @@ For tests, pass a Ghostty instance directly:
 }
 
 // src/ime-preedit.ts
+var isWide = (cp) => cp >= 4352 && cp <= 4447 || cp >= 11904 && cp <= 42191 || cp >= 43360 && cp <= 43391 || cp >= 44032 && cp <= 55203 || cp >= 63744 && cp <= 64255 || cp >= 65072 && cp <= 65103 || cp >= 65280 && cp <= 65376 || cp >= 65504 && cp <= 65510;
+var cellCount = (s) => {
+  let n2 = 0;
+  for (const ch of s) n2 += isWide(ch.codePointAt(0) ?? 0) ? 2 : 1;
+  return n2;
+};
 function attachGhosttyPreedit(term, host) {
   const target = term.element ?? host;
   const focusables = /* @__PURE__ */ new Set([target]);
@@ -2993,31 +2999,47 @@ function attachGhosttyPreedit(term, host) {
     el.style.color = "transparent";
     el.style.caretColor = "transparent";
   }
-  const overlay = document.createElement("div");
+  const overlay = document.createElement("canvas");
   overlay.setAttribute("data-node", "ime-preedit");
-  overlay.style.cssText = "position:absolute;z-index:3;pointer-events:none;display:none;white-space:pre;text-decoration:underline;border-radius:2px";
+  overlay.style.cssText = "position:absolute;z-index:3;pointer-events:none;display:none";
   host.appendChild(overlay);
-  const position = () => {
-    const canvas = (term.element ?? host).querySelector("canvas");
-    const cRect = (canvas ?? term.element ?? host).getBoundingClientRect();
+  const rendererMetrics = () => {
+    const r2 = term.renderer;
+    const m2 = r2?.metrics;
+    return m2 && m2.width > 0 && m2.height > 0 ? m2 : null;
+  };
+  const draw = (data) => {
+    const m2 = rendererMetrics();
+    const canvasEl = (term.element ?? host).querySelector("canvas");
+    if (!m2 || !canvasEl) return;
+    const cRect = canvasEl.getBoundingClientRect();
     const hRect = host.getBoundingClientRect();
-    const w = term.cols > 0 ? cRect.width / term.cols : 8;
-    const h = term.rows > 0 ? cRect.height / term.rows : 17;
     const col = term.buffer.active.cursorX;
     const row = term.buffer.active.cursorY - term.getViewportY();
-    overlay.style.left = `${cRect.left - hRect.left + col * w}px`;
-    overlay.style.top = `${cRect.top - hRect.top + row * h}px`;
-    overlay.style.minWidth = `${w}px`;
-    overlay.style.height = `${h}px`;
-    overlay.style.font = `${term.options.fontSize}px ${term.options.fontFamily}`;
-    overlay.style.lineHeight = `${h}px`;
-    overlay.style.background = String(term.options.theme?.cursor ?? "var(--acc)");
-    overlay.style.color = String(term.options.theme?.background ?? "var(--bg)");
+    const cells = Math.max(1, cellCount(data));
+    const wCss = m2.width * cells;
+    const hCss = m2.height;
+    const dpr = window.devicePixelRatio || 1;
+    overlay.width = Math.round(wCss * dpr);
+    overlay.height = Math.round(hCss * dpr);
+    overlay.style.width = `${wCss}px`;
+    overlay.style.height = `${hCss}px`;
+    overlay.style.left = `${cRect.left - hRect.left + col * m2.width}px`;
+    overlay.style.top = `${cRect.top - hRect.top + row * m2.height}px`;
+    const ctx = overlay.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = String(term.options.theme?.cursor ?? "#3b82f6");
+    ctx.fillRect(0, 0, wCss, hCss);
+    ctx.fillStyle = String(term.options.theme?.background ?? "#fff");
+    ctx.font = `${term.options.fontSize}px ${term.options.fontFamily}`;
+    ctx.fillText(data, 0, m2.baseline);
+    const ul = Math.max(2, Math.floor(hCss * 0.1));
+    ctx.fillRect(0, hCss - ul, wCss, ul);
+    overlay.style.display = "block";
   };
   let composing = false;
   const onStart = () => {
     composing = true;
-    position();
   };
   const onUpdate = (e3) => {
     if (!composing) return;
@@ -3026,14 +3048,11 @@ function attachGhosttyPreedit(term, host) {
       overlay.style.display = "none";
       return;
     }
-    position();
-    overlay.textContent = data;
-    overlay.style.display = "block";
+    draw(data);
   };
   const onEnd = () => {
     composing = false;
     overlay.style.display = "none";
-    overlay.textContent = "";
   };
   target.addEventListener("compositionstart", onStart, true);
   target.addEventListener("compositionupdate", onUpdate, true);

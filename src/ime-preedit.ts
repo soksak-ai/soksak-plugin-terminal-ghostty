@@ -1,27 +1,47 @@
-// ghostty-web 한글/CJK 조합 프리뷰 — 커서 위치 정합.
+// ghostty-web 한글/CJK 조합 프리뷰 — 커서 위치·크기 픽셀 정합.
 //
 // 실기기 지문(2026-07-11, ime.trace)으로 확정된 사실:
-//   - 이 경로(컨테이너 div 조합)에서는 WKWebView 가 **표준 composition 이벤트를 정상 발화**한다
+//   - 이 경로(컨테이너 div 조합)에서는 WKWebView 가 표준 composition 이벤트를 정상 발화한다
 //     (compositionstart → compositionupdate(data) → compositionend(data) → onData 1회).
-//     xterm 의 비표준화(WebKit bug 274700)는 textarea 특유였다 — 여기선 가드 불요.
-//   - 문제는 위치뿐: 브라우저가 조합 중 텍스트 노드를 컨테이너 맨 앞(좌상단)에 삽입해 그린다.
-//     (compositionend 시 ghostty-web 이 그 노드를 청소하고 onData 로 커밋 — 데이터는 무결.)
+//   - 문제는 위치·크기뿐: 브라우저는 조합 노드를 컨테이너 좌상단에 그리고, DOM div 프리뷰는
+//     렌더러의 셀 기하(metrics.width/height/baseline)와 기준선이 어긋난다(실기기 라운드 3).
 //
-// 해법: 조합 텍스트는 우리가 커서 셀 위치에 오버레이로 그리고, 브라우저의 컨테이너 조합
-// 노드는 font-size:0 + color:transparent 로 무광·무레이아웃 처리한다(캔버스는 무영향).
+// 해법: 프리뷰를 렌더러와 동일 수식으로 그리는 미니 캔버스로 — 같은 metrics, 같은 baseline,
+// 같은 폰트, dpr 스케일, 와이드(2셀) 폭 반영. 커서 셀 위에 겹친다(조합 = 삽입 예정 표시).
 import type { Terminal } from "ghostty-web";
 
 export interface PreeditHandle {
   dispose(): void;
 }
 
+interface RendererMetrics {
+  width: number;
+  height: number;
+  baseline: number;
+}
+
+const isWide = (cp: number): boolean =>
+  (cp >= 0x1100 && cp <= 0x115f) ||
+  (cp >= 0x2e80 && cp <= 0xa4cf) ||
+  (cp >= 0xa960 && cp <= 0xa97f) ||
+  (cp >= 0xac00 && cp <= 0xd7a3) ||
+  (cp >= 0xf900 && cp <= 0xfaff) ||
+  (cp >= 0xfe30 && cp <= 0xfe4f) ||
+  (cp >= 0xff00 && cp <= 0xff60) ||
+  (cp >= 0xffe0 && cp <= 0xffe6);
+
+const cellCount = (s: string): number => {
+  let n = 0;
+  for (const ch of s) n += isWide(ch.codePointAt(0) ?? 0) ? 2 : 1;
+  return n;
+};
+
 export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): PreeditHandle {
   const target = term.element ?? host;
 
-  // 조합 노드가 실제로 삽입되는 요소 = InputHandler 의 컨테이너(tabindex 부여됨).
-  // term.element 와 다를 수 있어 런타임에서 발견해 무광화한다(실기기: element 만 처리 시 유령 잔존).
+  // 조합 노드가 실제로 삽입되는 요소(tabindex 컨테이너 포함) 전부 무광·무레이아웃 처리.
   const focusables = new Set<HTMLElement>([target]);
-  const tabbed = host.querySelector<HTMLElement>('[tabindex]');
+  const tabbed = host.querySelector<HTMLElement>("[tabindex]");
   if (tabbed) focusables.add(tabbed);
   if (target.parentElement && target.parentElement !== host) focusables.add(target.parentElement);
   const prevStyles = new Map<HTMLElement, { fontSize: string; color: string; caret: string }>();
@@ -32,38 +52,53 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
     el.style.caretColor = "transparent";
   }
 
-  // 프리뷰 오버레이 — 터미널과 같은 폰트/크기, 테마 토큰 소비(P7), 언더라인으로 조합 중임을 표기.
-  const overlay = document.createElement("div");
+  // 프리뷰 = 미니 캔버스(렌더러와 동일 기하로 자가 렌더).
+  const overlay = document.createElement("canvas");
   overlay.setAttribute("data-node", "ime-preedit");
-  overlay.style.cssText =
-    "position:absolute;z-index:3;pointer-events:none;display:none;white-space:pre;" +
-    "text-decoration:underline;border-radius:2px";
+  overlay.style.cssText = "position:absolute;z-index:3;pointer-events:none;display:none";
   host.appendChild(overlay);
 
-  // 격자 기하 = 캔버스 실측(getBoundingClientRect). element 는 패딩·여백이 섞여 어긋난다(실기기).
-  const position = (): void => {
-    const canvas = (term.element ?? host).querySelector("canvas");
-    const cRect = (canvas ?? term.element ?? host).getBoundingClientRect();
+  const rendererMetrics = (): RendererMetrics | null => {
+    const r = term.renderer as unknown as { metrics?: RendererMetrics } | undefined;
+    const m = r?.metrics;
+    return m && m.width > 0 && m.height > 0 ? m : null;
+  };
+
+  const draw = (data: string): void => {
+    const m = rendererMetrics();
+    const canvasEl = (term.element ?? host).querySelector("canvas");
+    if (!m || !canvasEl) return;
+    const cRect = canvasEl.getBoundingClientRect();
     const hRect = host.getBoundingClientRect();
-    const w = term.cols > 0 ? cRect.width / term.cols : 8;
-    const h = term.rows > 0 ? cRect.height / term.rows : 17;
     const col = term.buffer.active.cursorX;
     const row = term.buffer.active.cursorY - term.getViewportY();
-    // 커서 셀 "위"에 겹친다 — 배경을 채워 아래의 커서 블록을 덮는다(조합 = 커서 자리 삽입 예정 표시).
-    overlay.style.left = `${cRect.left - hRect.left + col * w}px`;
-    overlay.style.top = `${cRect.top - hRect.top + row * h}px`;
-    overlay.style.minWidth = `${w}px`;
-    overlay.style.height = `${h}px`;
-    overlay.style.font = `${term.options.fontSize}px ${term.options.fontFamily}`;
-    overlay.style.lineHeight = `${h}px`;
-    overlay.style.background = String(term.options.theme?.cursor ?? "var(--acc)");
-    overlay.style.color = String(term.options.theme?.background ?? "var(--bg)");
+    const cells = Math.max(1, cellCount(data));
+    const wCss = m.width * cells;
+    const hCss = m.height;
+    const dpr = window.devicePixelRatio || 1;
+    overlay.width = Math.round(wCss * dpr);
+    overlay.height = Math.round(hCss * dpr);
+    overlay.style.width = `${wCss}px`;
+    overlay.style.height = `${hCss}px`;
+    overlay.style.left = `${cRect.left - hRect.left + col * m.width}px`;
+    overlay.style.top = `${cRect.top - hRect.top + row * m.height}px`;
+    const ctx = overlay.getContext("2d")!;
+    ctx.scale(dpr, dpr);
+    // 커서색 배경(커서 셀을 덮는다 — 조합이 커서 자리 삽입 예정임을 표시) + 배경색 글자.
+    ctx.fillStyle = String(term.options.theme?.cursor ?? "#3b82f6");
+    ctx.fillRect(0, 0, wCss, hCss);
+    ctx.fillStyle = String(term.options.theme?.background ?? "#fff");
+    ctx.font = `${term.options.fontSize}px ${term.options.fontFamily}`;
+    ctx.fillText(data, 0, m.baseline); // 렌더러와 동일: y = baseline
+    // 조합 중 표기(언더라인) — 렌더러 underline 스타일과 동형(하단 15%).
+    const ul = Math.max(2, Math.floor(hCss * 0.1));
+    ctx.fillRect(0, hCss - ul, wCss, ul);
+    overlay.style.display = "block";
   };
 
   let composing = false;
   const onStart = (): void => {
     composing = true;
-    position();
   };
   const onUpdate = (e: Event): void => {
     if (!composing) return;
@@ -72,14 +107,11 @@ export function attachGhosttyPreedit(term: Terminal, host: HTMLElement): Preedit
       overlay.style.display = "none";
       return;
     }
-    position();
-    overlay.textContent = data;
-    overlay.style.display = "block";
+    draw(data);
   };
   const onEnd = (): void => {
     composing = false;
     overlay.style.display = "none";
-    overlay.textContent = "";
   };
 
   target.addEventListener("compositionstart", onStart, true);

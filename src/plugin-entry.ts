@@ -88,6 +88,34 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(cell);
+    // [임시 교정 — 상류 결함] ghostty-web CanvasRenderer.measureFont 가 "M" 잉크 박스
+    // (actualBoundingBox*)로 행 높이·기준선을 잡는다 → 디센더 없는 "M" 기준이라 행이 과소하고,
+    // 잉크가 더 높은 글리프(한글·숫자)가 셀 상단에 붙어 커서 블록만 아래로 처져 보인다(실기기).
+    // 표준 폰트 박스(fontBoundingBox*)로 교체하고 remeasureFont(공개 API)로 재계산한다.
+    // 제거 조건: 상류(coder/ghostty-web)가 fontBoundingBox 기반 측정을 수용하면 삭제.
+    {
+      const r = term.renderer as unknown as {
+        measureFont?: () => { width: number; height: number; baseline: number };
+        remeasureFont?: () => void;
+      } | undefined;
+      if (r?.measureFont && r.remeasureFont) {
+        const fontPx = Number(term.options.fontSize ?? 13);
+        const family = String(term.options.fontFamily ?? "monospace");
+        r.measureFont = () => {
+          const c = document.createElement("canvas").getContext("2d")!;
+          c.font = `${fontPx}px ${family}`;
+          const m = c.measureText("M");
+          const ascent = m.fontBoundingBoxAscent || m.actualBoundingBoxAscent || fontPx * 0.8;
+          const descent = m.fontBoundingBoxDescent || m.actualBoundingBoxDescent || fontPx * 0.2;
+          return {
+            width: Math.ceil(m.width),
+            height: Math.ceil(ascent + descent),
+            baseline: Math.ceil(ascent),
+          };
+        };
+        r.remeasureFont();
+      }
+    }
     fit.fit();
     // 앱 테마 라이브 추종 — documentElement 의 테마 계약(data-* + :root 변수) 변화를 관찰해
     // 렌더러에 재적용한다(폴링 없음).

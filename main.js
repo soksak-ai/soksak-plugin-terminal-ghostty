@@ -3118,6 +3118,26 @@ function mountTerminal(container, ctx, vctx) {
     const fit = new DA();
     term.loadAddon(fit);
     term.open(cell);
+    {
+      const r2 = term.renderer;
+      if (r2?.measureFont && r2.remeasureFont) {
+        const fontPx = Number(term.options.fontSize ?? 13);
+        const family = String(term.options.fontFamily ?? "monospace");
+        r2.measureFont = () => {
+          const c = document.createElement("canvas").getContext("2d");
+          c.font = `${fontPx}px ${family}`;
+          const m2 = c.measureText("M");
+          const ascent = m2.fontBoundingBoxAscent || m2.actualBoundingBoxAscent || fontPx * 0.8;
+          const descent = m2.fontBoundingBoxDescent || m2.actualBoundingBoxDescent || fontPx * 0.2;
+          return {
+            width: Math.ceil(m2.width),
+            height: Math.ceil(ascent + descent),
+            baseline: Math.ceil(ascent)
+          };
+        };
+        r2.remeasureFont();
+      }
+    }
     fit.fit();
     const mo = new MutationObserver(() => {
       term.renderer?.setTheme(themeNow());

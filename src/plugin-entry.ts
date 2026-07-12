@@ -5,6 +5,7 @@ import { init, Terminal, FitAddon } from "ghostty-web";
 import { attachGhosttyPreedit } from "./ime-preedit";
 import { attachFocusCursor } from "./cursor-focus";
 import { openWithoutImplicitFocus } from "./focus-contract";
+import { ensureSidecar, orchestrateRestore, ensureSession } from "./restore";
 import type { PluginContext, PluginViewContext, Disposable } from "./host";
 
 // 플로우 컨트롤 — 5000B 처리 후 ACK(코어 pty.rs 가 짝).
@@ -130,6 +131,13 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-theme-mode", "style", "class"] });
     subs.push({ dispose: () => mo.disconnect() });
 
+    // ── 화면 복원 오케스트레이션(스폰 전) — 이 플러그인이 복원을 소유한다 ──
+    // warm=사이드카 rehydrate→ghostty 페인트→from_seq, cold=봉인 블롭→페인트+소실 고지→'none',
+    // fresh=코어 기본. spawn 전에 그린다(warm 은 uptoSeq 좌표, cold 는 신선 셸 출력 전에 페인트).
+    // ghostty 는 명령-블록 floor 가 없어 painted 는 쓰지 않는다 — replay 만 소비한다.
+    const outcome = await orchestrateRestore(app, viewId, (d) => term.write(d));
+    if (disposed) return;
+
     // ── PTY 배선(코어 단일 진실) ──
     const pty = app.pty!;
     const restoredCwd = vctx.restore?.cwd ?? undefined;
@@ -138,12 +146,16 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
       rows: term.rows,
       cwd: restoredCwd ?? vctx.root ?? undefined,
       paneId: viewId,
+      replay: outcome.replay,
     });
     if (disposed) {
       void pty.close(ptyId);
       return;
     }
     inst.ptyId = ptyId;
+    // 사이드카가 이 세션을 구독하게 한다 — 부팅 후 태어난 세션의 tee 를 근접-birth 에 잡아
+    // 다음 재시작의 warm 복원 토대가 된다. 유계 재시도(사이드카 스폰 비동기), best-effort.
+    void ensureSession(app, viewId, term.cols, term.rows);
 
     // 출력: PTY → term. ACK 플로우 컨트롤(5000B 누적마다).
     let pendingAck = 0;
@@ -226,6 +238,9 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
 export default {
   activate(ctx: PluginContext) {
     const app = ctx.app;
+    // 생존 서비스 사이드카(터미널 미러 복원)를 스폰한다 — detached 로 앱 종료를 넘어 살고,
+    // 싱글턴 프로브가 중복을 흡수한다(xterm 과 같은 계약·같은 유닛 terminal-alacritty 공유).
+    ensureSidecar(app);
     if (app.ui?.registerView) {
       const cleanups = new WeakMap<HTMLElement, () => void>();
       ctx.subscriptions.push(

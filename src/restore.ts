@@ -7,8 +7,10 @@
 import type { PluginApi } from "./host";
 import { t } from "./i18n";
 
-// 사이드카 유닛 — plugin.json sidecars[].name 과 정합(cmd = "sidecar:{name}").
-export const SIDECAR_NAME = "terminal-alacritty";
+// 이 플러그인이 소비하는 **계약**. 그 계약을 어느 엔진 유닛이 구현하는지는 이 번들이 정하지 않는다 —
+// 매니페스트 sidecars[] 가 정한다(SPEC: "The plugin manifest selects the unit"). 유닛명을 여기 상수로
+// 굳히면 매니페스트만 바꿨을 때 옛 유닛이 무음으로 스폰된다(declared ≠ actual).
+export const TERMINAL_CONTRACT = "soksak-sidecar-terminal-spec@1";
 
 // 스폰은 항상 replay 를 명시한다 — undefined("코어 기본")는 없다. "none"=소비자 소유 또는
 // 신선(코어 재생 없음), {fromSeq}=warm 핸드오프.
@@ -34,7 +36,9 @@ function b64ToBytes(b64: string): Uint8Array {
 export function ensureSidecar(app: PluginApi): void {
   const proc = app.process;
   if (!proc) return;
-  proc.spawn(`sidecar:${SIDECAR_NAME}`, [], { detached: true }).catch((e: unknown) => {
+  // 유닛 선택의 단일진실 = 매니페스트. 코어가 그 선언을 읽어 준다.
+  const unit = proc.sidecarName(TERMINAL_CONTRACT);
+  proc.spawn(`sidecar:${unit}`, [], { detached: true }).catch((e: unknown) => {
     app.activity.publish("terminal.sidecar.spawn-failed", {
       message: `${t("sidecar.spawn-failed", app.locale())} (${String(e)})`,
     });

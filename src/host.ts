@@ -60,6 +60,8 @@ export interface PtyApi {
     cwd?: string;
     shell?: string;
     paneId?: string;
+    /** 화면 복원 제어(배관) — 항상 명시: "none"=소비자 소유, {fromSeq}=warm 핸드오프. */
+    replay?: "none" | { fromSeq: number };
   }): Promise<number>;
   write(id: number, data: string | Uint8Array): Promise<void>;
   resize(id: number, cols: number, rows: number): Promise<void>;
@@ -71,6 +73,30 @@ export interface PtyApi {
     paneId: string,
     io: { readBuffer: (lines?: number) => string; sendInput: (data: string) => void },
   ): Disposable;
+  /** 생존 서비스 사이드카 서비스 소켓에 NDJSON 요청/응답 1왕복 릴레이. 코어 내용 불가지 + 현재
+   *  창 label 스탬프. 연결 실패는 throw(사이드카 사망 loud). */
+  sidecarRequest(req: Record<string, unknown>): Promise<Record<string, unknown>>;
+  /** 이 pane 의 봉인 체크포인트를 앱 볼트로 개봉한 평문(base64)+altActive. 잠금=throw, 없음=null. */
+  readSealedScreen(
+    paneId: string,
+  ): Promise<{ paintB64: string; altActive: boolean } | null>;
+}
+
+// app.process — 외부 서브프로세스 spawn("process" 권한). 생존 서비스 사이드카를 detached 스폰.
+export interface ProcessApi {
+  spawn(
+    cmd: string,
+    args: string[],
+    opts?: {
+      cwd?: string;
+      env?: Record<string, string>;
+      envRemove?: string[];
+      secretEnv?: Record<string, string>;
+      detached?: boolean;
+    },
+  ): Promise<number>;
+  onExit(handle: number, cb: (code: number) => void): Disposable;
+  kill(handle: number): Promise<void>;
 }
 
 export interface PluginApi {
@@ -112,6 +138,8 @@ export interface PluginApi {
     registerView: (viewId: string, provider: PluginViewProvider) => Disposable;
   };
   pty?: PtyApi;
+  // 생존 서비스 사이드카 스폰용("process" 권한). 미선언이면 undefined(graceful).
+  process?: ProcessApi;
   settings: {
     get: (key: string) => unknown;
     all: () => Record<string, unknown>;

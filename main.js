@@ -1434,46 +1434,46 @@ var $ = class {
     const s = I.x !== this.lastCursorPosition.x || I.y !== this.lastCursorPosition.y;
     if (s || this.cursorBlink) {
       if (!B && !A.isRowDirty(I.y)) {
-        const t = A.getLine(I.y);
-        t && this.renderLine(t, I.y, D.cols);
+        const t2 = A.getLine(I.y);
+        t2 && this.renderLine(t2, I.y, D.cols);
       }
       if (s && this.lastCursorPosition.y !== I.y && !B && !A.isRowDirty(this.lastCursorPosition.y)) {
-        const t = A.getLine(this.lastCursorPosition.y);
-        t && this.renderLine(t, this.lastCursorPosition.y, D.cols);
+        const t2 = A.getLine(this.lastCursorPosition.y);
+        t2 && this.renderLine(t2, this.lastCursorPosition.y, D.cols);
       }
     }
     const N = this.selectionManager && this.selectionManager.hasSelection(), k = /* @__PURE__ */ new Set();
     if (this.currentSelectionCoords = N ? this.selectionManager.getSelectionCoords() : null, this.currentSelectionCoords) {
-      const t = this.currentSelectionCoords;
-      for (let c = t.startRow; c <= t.endRow; c++)
+      const t2 = this.currentSelectionCoords;
+      for (let c = t2.startRow; c <= t2.endRow; c++)
         k.add(c);
     }
     if (this.selectionManager) {
-      const t = this.selectionManager.getDirtySelectionRows();
-      if (t.size > 0) {
-        for (const c of t)
+      const t2 = this.selectionManager.getDirtySelectionRows();
+      if (t2.size > 0) {
+        for (const c of t2)
           k.add(c);
         this.selectionManager.clearDirtySelectionRows();
       }
     }
     const M = /* @__PURE__ */ new Set(), a = this.hoveredHyperlinkId !== this.previousHoveredHyperlinkId, h = JSON.stringify(this.hoveredLinkRange) !== JSON.stringify(this.previousHoveredLinkRange);
     if (a) {
-      for (let t = 0; t < D.rows; t++) {
+      for (let t2 = 0; t2 < D.rows; t2++) {
         let c = null;
         if (g > 0)
-          if (t < g && E) {
-            const F = i - Math.floor(g) + t;
+          if (t2 < g && E) {
+            const F = i - Math.floor(g) + t2;
             c = E.getScrollbackLine(F);
           } else {
-            const F = t - Math.floor(g);
+            const F = t2 - Math.floor(g);
             c = A.getLine(F);
           }
         else
-          c = A.getLine(t);
+          c = A.getLine(t2);
         if (c) {
           for (const F of c)
             if (F.hyperlink_id === this.hoveredHyperlinkId || F.hyperlink_id === this.previousHoveredHyperlinkId) {
-              M.add(t);
+              M.add(t2);
               break;
             }
         }
@@ -1482,31 +1482,31 @@ var $ = class {
     }
     if (h) {
       if (this.previousHoveredLinkRange)
-        for (let t = this.previousHoveredLinkRange.startY; t <= this.previousHoveredLinkRange.endY; t++)
-          M.add(t);
+        for (let t2 = this.previousHoveredLinkRange.startY; t2 <= this.previousHoveredLinkRange.endY; t2++)
+          M.add(t2);
       if (this.hoveredLinkRange)
-        for (let t = this.hoveredLinkRange.startY; t <= this.hoveredLinkRange.endY; t++)
-          M.add(t);
+        for (let t2 = this.hoveredLinkRange.startY; t2 <= this.hoveredLinkRange.endY; t2++)
+          M.add(t2);
       this.previousHoveredLinkRange = this.hoveredLinkRange;
     }
     const G = /* @__PURE__ */ new Set();
-    for (let t = 0; t < D.rows; t++)
-      (g > 0 ? true : B || A.isRowDirty(t) || k.has(t) || M.has(t)) && (G.add(t), t > 0 && G.add(t - 1), t < D.rows - 1 && G.add(t + 1));
-    for (let t = 0; t < D.rows; t++) {
-      if (!G.has(t))
+    for (let t2 = 0; t2 < D.rows; t2++)
+      (g > 0 ? true : B || A.isRowDirty(t2) || k.has(t2) || M.has(t2)) && (G.add(t2), t2 > 0 && G.add(t2 - 1), t2 < D.rows - 1 && G.add(t2 + 1));
+    for (let t2 = 0; t2 < D.rows; t2++) {
+      if (!G.has(t2))
         continue;
       let c = null;
       if (g > 0)
-        if (t < g && E) {
-          const F = i - Math.floor(g) + t;
+        if (t2 < g && E) {
+          const F = i - Math.floor(g) + t2;
           c = E.getScrollbackLine(F);
         } else {
-          const F = g > 0 ? t - Math.floor(g) : t;
+          const F = g > 0 ? t2 - Math.floor(g) : t2;
           c = A.getLine(F);
         }
       else
-        c = A.getLine(t);
-      c && this.renderLine(c, t, D.cols);
+        c = A.getLine(t2);
+      c && this.renderLine(c, t2, D.cols);
     }
     g === 0 && I.visible && this.cursorVisible && this.renderCursor(I.x, I.y), E && C > 0 && this.renderScrollbar(g, i, D.rows, C), this.lastCursorPosition = { x: I.x, y: I.y }, A.clearDirty();
   }
@@ -2215,8 +2215,8 @@ var IA = class {
       const C = this.canvas.getBoundingClientRect(), I = g.clientX - C.left, D = g.clientY - C.top, i = C.width, w = C.height, s = 8, N = i - s - 4, k = 4;
       if (I >= N && I <= N + s) {
         g.preventDefault(), g.stopPropagation(), g.stopImmediatePropagation();
-        const M = w - k * 2, a = this.rows, h = E + a, G = Math.max(20, a / h * M), U = this.viewportY / E, t = k + (M - G) * (1 - U);
-        if (D >= t && D <= t + G)
+        const M = w - k * 2, a = this.rows, h = E + a, G = Math.max(20, a / h * M), U = this.viewportY / E, t2 = k + (M - G) * (1 - U);
+        if (D >= t2 && D <= t2 + G)
           this.isDraggingScrollbar = true, this.scrollbarDragStart = D, this.scrollbarDragStartViewportY = this.viewportY, this.canvas && (this.canvas.style.userSelect = "none", this.canvas.style.webkitUserSelect = "none");
         else {
           const F = 1 - (D - k) / M, S = Math.round(F * E);
@@ -2743,8 +2743,8 @@ var IA = class {
     else
       k = N + C;
     this.linkDetector.getLinkAt(g, k).then((h) => {
-      var G, U, t, c;
-      if (h !== this.currentHoveredLink && ((U = (G = this.currentHoveredLink) == null ? void 0 : G.hover) == null || U.call(G, false), this.currentHoveredLink = h, (t = h == null ? void 0 : h.hover) == null || t.call(h, true), this.element && (this.element.style.cursor = h ? "pointer" : "text"), this.renderer))
+      var G, U, t2, c;
+      if (h !== this.currentHoveredLink && ((U = (G = this.currentHoveredLink) == null ? void 0 : G.hover) == null || U.call(G, false), this.currentHoveredLink = h, (t2 = h == null ? void 0 : h.hover) == null || t2.call(h, true), this.element && (this.element.style.cursor = h ? "pointer" : "text"), this.renderer))
         if (h) {
           const F = ((c = this.wasmTerm) == null ? void 0 : c.getScrollbackLength()) || 0, S = this.getViewportY(), x = Math.max(0, Math.floor(S)), p = h.range.start.y - F + x, T = h.range.end.y - F + x;
           p < this.rows && T >= 0 ? this.renderer.setHoveredLinkRange({
@@ -3164,6 +3164,100 @@ function openWithoutImplicitFocus(terminal, container) {
   }
 }
 
+// src/i18n.ts
+var EN = {
+  "cold-restore-notice": "[Restored from a sealed checkpoint \u2014 the running process ended and was not restored; only the screen record was repainted]",
+  "restore.degraded": "Could not reach the terminal restore sidecar \u2014 restore is degraded (falling back to the sealed record).",
+  "restore.cold-blocked": "Sealed screen restore is blocked; starting live only.",
+  "sidecar.spawn-failed": "Failed to spawn the terminal restore sidecar.",
+  "sidecar.subscribe-timeout": "The restore sidecar did not subscribe this session in time \u2014 restore fidelity is limited for this session."
+};
+var KO = {
+  "cold-restore-notice": "[\uBD09\uC778 \uCCB4\uD06C\uD3EC\uC778\uD2B8\uC5D0\uC11C \uBCF5\uC6D0 \u2014 \uC2E4\uD589 \uC911\uC774\uB358 \uD504\uB85C\uC138\uC2A4\uB294 \uC885\uB8CC\uB418\uC5B4 \uBCF5\uC6D0\uB418\uC9C0 \uC54A\uC558\uACE0, \uD654\uBA74 \uAE30\uB85D\uB9CC \uB2E4\uC2DC \uADF8\uB838\uC2B5\uB2C8\uB2E4]",
+  "restore.degraded": "\uD130\uBBF8\uB110 \uBCF5\uC6D0 \uC0AC\uC774\uB4DC\uCE74\uC5D0 \uB2FF\uC9C0 \uBABB\uD574 \uBCF5\uC6D0\uC774 \uC81C\uD55C\uB429\uB2C8\uB2E4(\uBD09\uC778 \uAE30\uB85D\uC73C\uB85C \uD3F4\uBC31).",
+  "restore.cold-blocked": "\uBD09\uC778 \uD654\uBA74 \uBCF5\uC6D0\uC774 \uCC28\uB2E8\uB418\uC5B4 \uB77C\uC774\uBE0C\uB9CC \uC2DC\uC791\uD569\uB2C8\uB2E4.",
+  "sidecar.spawn-failed": "\uD130\uBBF8\uB110 \uBCF5\uC6D0 \uC0AC\uC774\uB4DC\uCE74 \uC2A4\uD3F0\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.",
+  "sidecar.subscribe-timeout": "\uBCF5\uC6D0 \uC0AC\uC774\uB4DC\uCE74\uAC00 \uC774 \uC138\uC158\uC744 \uC81C\uB54C \uAD6C\uB3C5\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4 \u2014 \uC774 \uC138\uC158\uC758 \uBCF5\uC6D0 \uCDA9\uC2E4\uB3C4\uAC00 \uC81C\uD55C\uB429\uB2C8\uB2E4."
+};
+function t(key, lang) {
+  const dict = lang === "ko" ? KO : EN;
+  return dict[key] ?? EN[key] ?? key;
+}
+
+// src/restore.ts
+var SIDECAR_NAME = "terminal-alacritty";
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function ensureSidecar(app) {
+  const proc = app.process;
+  if (!proc) return;
+  proc.spawn(`sidecar:${SIDECAR_NAME}`, [], { detached: true }).catch((e3) => {
+    app.activity.publish("terminal.sidecar.spawn-failed", {
+      message: `${t("sidecar.spawn-failed", app.locale())} (${String(e3)})`
+    });
+  });
+}
+async function ensureSession(app, paneId, cols, rows) {
+  const pty = app.pty;
+  if (!pty) return;
+  const deadline = Date.now() + 8e3;
+  let delay = 150;
+  while (Date.now() < deadline) {
+    try {
+      const r2 = await pty.sidecarRequest({ op: "ensureSession", pane: paneId, cols, rows });
+      if (r2.ok === true) return;
+    } catch {
+    }
+    await new Promise((res) => setTimeout(res, delay));
+    delay = Math.min(delay * 2, 1e3);
+  }
+  app.activity.publish("terminal.sidecar.subscribe-timeout", {
+    message: `${t("sidecar.subscribe-timeout", app.locale())} (${paneId})`
+  });
+}
+async function orchestrateRestore(app, paneId, writeInert) {
+  const pty = app.pty;
+  if (!pty) return { replay: void 0, painted: false };
+  try {
+    const reply = await pty.sidecarRequest({ op: "rehydrate", pane: paneId });
+    if (reply.ok === true) {
+      const data = reply.data;
+      writeInert(b64ToBytes(data.paint));
+      return { replay: { fromSeq: data.uptoSeq }, painted: true };
+    }
+  } catch {
+    app.activity.publish("terminal.restore.degraded", { message: t("restore.degraded", app.locale()) });
+    ensureSidecar(app);
+    return coldOrFresh(app, paneId, writeInert, true);
+  }
+  return coldOrFresh(app, paneId, writeInert, false);
+}
+async function coldOrFresh(app, paneId, writeInert, sidecarDown) {
+  const pty = app.pty;
+  if (!pty) return { replay: void 0, painted: false };
+  try {
+    const sealed = await pty.readSealedScreen(paneId);
+    if (sealed) {
+      writeInert(b64ToBytes(sealed.paintB64));
+      writeInert(`\x1B[2m${t("cold-restore-notice", app.locale())}\x1B[0m\r
+`);
+      return { replay: "none", painted: true };
+    }
+  } catch (e3) {
+    app.activity.publish("terminal.restore.cold-blocked", {
+      message: `${t("restore.cold-blocked", app.locale())} (${String(e3)})`
+    });
+  }
+  if (sidecarDown) {
+    return { replay: void 0, painted: false, deferToCoreRestore: true };
+  }
+  return { replay: void 0, painted: false };
+}
+
 // src/plugin-entry.ts
 var FLOW_ACK_SIZE = 5e3;
 var instances = /* @__PURE__ */ new Map();
@@ -3257,19 +3351,23 @@ function mountTerminal(container, ctx, vctx) {
     });
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-theme-mode", "style", "class"] });
     subs.push({ dispose: () => mo.disconnect() });
+    const outcome = await orchestrateRestore(app, viewId, (d2) => term.write(d2));
+    if (disposed) return;
     const pty = app.pty;
     const restoredCwd = vctx.restore?.cwd ?? void 0;
     const ptyId = await pty.spawn({
       cols: term.cols,
       rows: term.rows,
       cwd: restoredCwd ?? vctx.root ?? void 0,
-      paneId: viewId
+      paneId: viewId,
+      replay: outcome.replay
     });
     if (disposed) {
       void pty.close(ptyId);
       return;
     }
     inst.ptyId = ptyId;
+    void ensureSession(app, viewId, term.cols, term.rows);
     let pendingAck = 0;
     subs.push(
       pty.onData(ptyId, (bytes) => {
@@ -3298,7 +3396,7 @@ function mountTerminal(container, ctx, vctx) {
         void pty.resize(ptyId, cols, rows);
       })
     );
-    subs.push(term.onTitleChange((t) => t && vctx.setTitle(t)));
+    subs.push(term.onTitleChange((t2) => t2 && vctx.setTitle(t2)));
     subs.push(
       pty.registerIo(viewId, {
         readBuffer: (lines) => {
@@ -3329,6 +3427,7 @@ function mountTerminal(container, ctx, vctx) {
 var plugin_entry_default = {
   activate(ctx) {
     const app = ctx.app;
+    ensureSidecar(app);
     if (app.ui?.registerView) {
       const cleanups = /* @__PURE__ */ new WeakMap();
       ctx.subscriptions.push(

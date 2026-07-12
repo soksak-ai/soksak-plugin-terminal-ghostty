@@ -11,10 +11,17 @@
     "en": "Terminal powered by the Ghostty VT engine — a second terminal program alongside the existing one."
   },
   "entry": "main.js",
+  "sidecars": [
+    {
+      "name": "terminal-alacritty",
+      "interface": "soksak-sidecar-terminal-spec@1"
+    }
+  ],
   "permissions": [
     "ui",
     "commands",
     "programs",
+    "process",
     "pty",
     "terminal",
     "terminal:read",

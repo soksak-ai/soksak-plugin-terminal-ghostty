@@ -3187,7 +3187,7 @@ function t(key, lang) {
 }
 
 // src/restore.ts
-var SIDECAR_NAME = "terminal-alacritty";
+var TERMINAL_CONTRACT = "soksak-sidecar-terminal-spec@1";
 function b64ToBytes(b64) {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
@@ -3197,7 +3197,8 @@ function b64ToBytes(b64) {
 function ensureSidecar(app) {
   const proc = app.process;
   if (!proc) return;
-  proc.spawn(`sidecar:${SIDECAR_NAME}`, [], { detached: true }).catch((e3) => {
+  const unit = proc.sidecarName(TERMINAL_CONTRACT);
+  proc.spawn(`sidecar:${unit}`, [], { detached: true }).catch((e3) => {
     app.activity.publish("terminal.sidecar.spawn-failed", {
       message: `${t("sidecar.spawn-failed", app.locale())} (${String(e3)})`
     });

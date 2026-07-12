@@ -153,6 +153,20 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
       return;
     }
     inst.ptyId = ptyId;
+    // [복원 렌더 플러시 불변식] 복원 페인트(rehydrate/cold)가 렌더러 초기 패스 전에 write 되면
+    // 버퍼는 차나 픽셀이 백지로 남는다(ghostty-web canvas 초기화 타이밍). 렌더러 준비 후(rAF)
+    // remeasureFont(공개 API — 전체 재렌더 강제)로 버퍼를 픽셀로 플러시한다 — "복원 페인트는
+    // 렌더 플러시로 끝난다". 폴링/sleep 아님(단발 rAF).
+    if (outcome.painted) {
+      requestAnimationFrame(() => {
+        if (disposed) return;
+        try {
+          (term.renderer as unknown as { remeasureFont?: () => void } | undefined)?.remeasureFont?.();
+        } catch {
+          /* 렌더러 미준비 — 다음 write 가 그린다 */
+        }
+      });
+    }
     // 사이드카가 이 세션을 구독하게 한다 — 부팅 후 태어난 세션의 tee 를 근접-birth 에 잡아
     // 다음 재시작의 warm 복원 토대가 된다. 유계 재시도(사이드카 스폰 비동기), best-effort.
     void ensureSession(app, viewId, term.cols, term.rows);

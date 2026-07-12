@@ -3367,6 +3367,15 @@ function mountTerminal(container, ctx, vctx) {
       return;
     }
     inst.ptyId = ptyId;
+    if (outcome.painted) {
+      requestAnimationFrame(() => {
+        if (disposed) return;
+        try {
+          term.renderer?.remeasureFont?.();
+        } catch {
+        }
+      });
+    }
     void ensureSession(app, viewId, term.cols, term.rows);
     let pendingAck = 0;
     subs.push(

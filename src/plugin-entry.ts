@@ -132,9 +132,9 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     subs.push({ dispose: () => mo.disconnect() });
 
     // ── 화면 복원 오케스트레이션(스폰 전) — 이 플러그인이 복원을 소유한다 ──
-    // warm=사이드카 rehydrate→ghostty 페인트→from_seq, cold=봉인 블롭→페인트+소실 고지→'none',
-    // fresh=코어 기본. spawn 전에 그린다(warm 은 uptoSeq 좌표, cold 는 신선 셸 출력 전에 페인트).
-    // ghostty 는 명령-블록 floor 가 없어 painted 는 쓰지 않는다 — replay 만 소비한다.
+    // warm=사이드카 rehydrate→ghostty 페인트→from_seq, cold=봉인 블롭→페인트+소실 고지→"none".
+    // orchestrateRestore 가 데몬에 warm 후보(라이브 세션)를 물어, 있을 때만 사이드카 rehydrate 를
+    // 태운다 — 신선/cold 는 사이드카를 안 기다려 스폰이 안 밀린다. ghostty 는 floor 없어 painted 미사용.
     const outcome = await orchestrateRestore(app, viewId, (d) => term.write(d));
     if (disposed) return;
 

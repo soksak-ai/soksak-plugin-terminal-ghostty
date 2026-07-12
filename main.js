@@ -3224,26 +3224,35 @@ async function ensureSession(app, paneId, cols, rows) {
 async function orchestrateRestore(app, paneId, writeInert) {
   const pty = app.pty;
   if (!pty) return { replay: "none", painted: false };
-  const deadline = Date.now() + 4e3;
-  let delay = 100;
-  for (; ; ) {
-    try {
-      const reply = await pty.sidecarRequest({ op: "rehydrate", pane: paneId });
-      if (reply.ok === true) {
-        const data = reply.data;
-        writeInert(b64ToBytes(data.paint));
-        return { replay: { fromSeq: data.uptoSeq }, painted: true };
-      }
-      return coldOrFresh(app, paneId, writeInert, false);
-    } catch {
-      if (Date.now() >= deadline) break;
-      await new Promise((res) => setTimeout(res, delay));
-      delay = Math.min(delay * 2, 1e3);
-    }
+  let warmCandidate = false;
+  try {
+    warmCandidate = await pty.paneAlive(paneId);
+  } catch {
+    warmCandidate = false;
   }
-  app.activity.publish("terminal.restore.degraded", { message: t("restore.degraded", app.locale()) });
-  ensureSidecar(app);
-  return coldOrFresh(app, paneId, writeInert, true);
+  if (warmCandidate) {
+    const deadline = Date.now() + 4e3;
+    let delay = 100;
+    for (; ; ) {
+      try {
+        const reply = await pty.sidecarRequest({ op: "rehydrate", pane: paneId });
+        if (reply.ok === true) {
+          const data = reply.data;
+          writeInert(b64ToBytes(data.paint));
+          return { replay: { fromSeq: data.uptoSeq }, painted: true };
+        }
+        break;
+      } catch {
+        if (Date.now() >= deadline) break;
+        await new Promise((res) => setTimeout(res, delay));
+        delay = Math.min(delay * 2, 1e3);
+      }
+    }
+    app.activity.publish("terminal.restore.degraded", { message: t("restore.degraded", app.locale()) });
+    ensureSidecar(app);
+    return coldOrFresh(app, paneId, writeInert, true);
+  }
+  return coldOrFresh(app, paneId, writeInert, false);
 }
 async function coldOrFresh(app, paneId, writeInert, sidecarDown) {
   const pty = app.pty;

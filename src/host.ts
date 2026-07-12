@@ -80,6 +80,9 @@ export interface PtyApi {
   readSealedScreen(
     paneId: string,
   ): Promise<{ paintB64: string; altActive: boolean } | null>;
+  /** 이 pane 에 라이브 데몬 세션이 있는가 — warm 복원 후보 판정(사이드카 무관·즉답, 데몬 안 띄움).
+   *  false = 신선/cold/데몬 미가동 → 사이드카 rehydrate(재시도)를 안 태우고 즉시 진행. */
+  paneAlive(paneId: string): Promise<boolean>;
 }
 
 // app.process — 외부 서브프로세스 spawn("process" 권한). 생존 서비스 사이드카를 detached 스폰.

@@ -1,23 +1,24 @@
 // 터미널 화면 복원 오케스트레이션 — 이 플러그인이 화면 복원을 소유한다. 세 경로:
 //   warm  라이브 미러가 있다 → 사이드카 rehydrate → inert 페인트 → from_seq 로 라이브 이음.
 //   cold  죽은 세션 → 봉인 블롭 읽기(사이드카 불요) → inert 페인트 + 소실 고지 → 신선 셸.
-//   fresh 복원할 것 없음 → 코어 기본 스폰(프롬프트) + 명령-블록 floor.
-// degraded: 사이드카 사망은 loud 고지 + 리스폰, 봉인 폴백. 무음 금지.
+//   fresh 복원할 것 없음 → 신선 스폰(프롬프트) + 명령-블록 floor.
+// degraded: 사이드카 사망 loud 고지 + 리스폰 → 봉인 폴백. 봉인마저 없으면 degraded-fresh 고지 +
+//   신선 셸(코어 폴백 없음). 무음 금지.
 import type { PluginApi } from "./host";
 import { t } from "./i18n";
 
 // 사이드카 유닛 — plugin.json sidecars[].name 과 정합(cmd = "sidecar:{name}").
 export const SIDECAR_NAME = "terminal-alacritty";
 
-export type ReplayControl = "none" | { fromSeq: number } | undefined;
+// 스폰은 항상 replay 를 명시한다 — undefined("코어 기본")는 없다. "none"=소비자 소유 또는
+// 신선(코어 재생 없음), {fromSeq}=warm 핸드오프.
+export type ReplayControl = "none" | { fromSeq: number };
 
 export interface RestoreOutcome {
-  // 코어 spawn 의 replay 제어. 없음=코어 소유(기본), "none"=소비자 소유(cold), {fromSeq}=warm 핸드오프.
   replay: ReplayControl;
   // 소비자가 복원 화면을 그렸는가 — true 면 명령-블록 floor(이력 repaint)를 겹치지 않는다.
+  // painted=false 면 코어 폴백에 기대지 않고, floor 가 이력 바닥을 깐다(복원 사다리 최후 단).
   painted: boolean;
-  // degraded 기본 경로: 스폰 후 코어 wasScreenRestored 로 painted 를 판정한다(코어가 복원했으면 floor 스킵).
-  deferToCoreRestore?: boolean;
 }
 
 // base64(ANSI 바이트) → Uint8Array. term.write 에 그대로 넘겨 raw 를 UTF-8 왜곡 없이 보존.
@@ -82,7 +83,7 @@ export async function orchestrateRestore(
   writeInert: (data: string | Uint8Array) => void,
 ): Promise<RestoreOutcome> {
   const pty = app.pty;
-  if (!pty) return { replay: undefined, painted: false };
+  if (!pty) return { replay: "none", painted: false };
 
   // 1) warm — 라이브 미러에서 rehydrate(사이드카 서비스 소켓 릴레이). 연결 실패는 throw(사망 loud).
   try {
@@ -112,7 +113,7 @@ async function coldOrFresh(
   sidecarDown: boolean,
 ): Promise<RestoreOutcome> {
   const pty = app.pty;
-  if (!pty) return { replay: undefined, painted: false };
+  if (!pty) return { replay: "none", painted: false };
   try {
     const sealed = await pty.readSealedScreen(paneId);
     if (sealed) {
@@ -129,10 +130,15 @@ async function coldOrFresh(
   }
   // 봉인 블롭 없음(또는 cold 차단):
   if (sidecarDown) {
-    // 사이드카 다운 + 블롭 없음 — warm-live 일 수 있으니 코어 기본 복원에 맡기고(degraded),
-    // painted 는 스폰 후 wasScreenRestored 로 판정한다(코어가 복원했으면 floor 스킵).
-    return { replay: undefined, painted: false, deferToCoreRestore: true };
+    // 사이드카 다운 + 봉인 기록 없음 — 복원할 화면이 없다. 코어 폴백은 없다: 무음 대신
+    // degraded 를 화면·활동에 loud 고지하고 신선 셸로 간다. 명령-블록
+    // floor 가 이력 바닥을 깐다(복원 사다리 최후 단).
+    writeInert(`\x1b[2m${t("restore.degraded-fresh", app.locale())}\x1b[0m\r\n`);
+    app.activity.publish("terminal.restore.degraded-fresh", {
+      message: t("restore.degraded-fresh", app.locale()),
+    });
+    return { replay: "none", painted: false };
   }
-  // 신선 터미널 — 복원할 것 없음(코어 기본 스폰이 프롬프트를 보이고 floor 가 이력을 그린다).
-  return { replay: undefined, painted: false };
+  // 신선 터미널 — 복원할 것 없음(신선 스폰이 프롬프트를 보이고 floor 가 이력을 그린다).
+  return { replay: "none", painted: false };
 }

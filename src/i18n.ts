@@ -6,6 +6,8 @@ const EN: Dict = {
     "[Restored from a sealed checkpoint — the running process ended and was not restored; only the screen record was repainted]",
   "restore.degraded":
     "Could not reach the terminal restore sidecar — restore is degraded (falling back to the sealed record).",
+  "restore.degraded-fresh":
+    "Restore service is unavailable — starting a fresh shell without screen history.",
   "restore.cold-blocked": "Sealed screen restore is blocked; starting live only.",
   "sidecar.spawn-failed": "Failed to spawn the terminal restore sidecar.",
   "sidecar.subscribe-timeout":
@@ -17,6 +19,7 @@ const KO: Dict = {
     "[봉인 체크포인트에서 복원 — 실행 중이던 프로세스는 종료되어 복원되지 않았고, 화면 기록만 다시 그렸습니다]",
   "restore.degraded":
     "터미널 복원 사이드카에 닿지 못해 복원이 제한됩니다(봉인 기록으로 폴백).",
+  "restore.degraded-fresh": "복원 서비스 미가동 — 화면 기록 없이 새 셸로 시작합니다.",
   "restore.cold-blocked": "봉인 화면 복원이 차단되어 라이브만 시작합니다.",
   "sidecar.spawn-failed": "터미널 복원 사이드카 스폰에 실패했습니다.",
   "sidecar.subscribe-timeout":

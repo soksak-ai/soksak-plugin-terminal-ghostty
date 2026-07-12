@@ -3168,6 +3168,7 @@ function openWithoutImplicitFocus(terminal, container) {
 var EN = {
   "cold-restore-notice": "[Restored from a sealed checkpoint \u2014 the running process ended and was not restored; only the screen record was repainted]",
   "restore.degraded": "Could not reach the terminal restore sidecar \u2014 restore is degraded (falling back to the sealed record).",
+  "restore.degraded-fresh": "Restore service is unavailable \u2014 starting a fresh shell without screen history.",
   "restore.cold-blocked": "Sealed screen restore is blocked; starting live only.",
   "sidecar.spawn-failed": "Failed to spawn the terminal restore sidecar.",
   "sidecar.subscribe-timeout": "The restore sidecar did not subscribe this session in time \u2014 restore fidelity is limited for this session."
@@ -3175,6 +3176,7 @@ var EN = {
 var KO = {
   "cold-restore-notice": "[\uBD09\uC778 \uCCB4\uD06C\uD3EC\uC778\uD2B8\uC5D0\uC11C \uBCF5\uC6D0 \u2014 \uC2E4\uD589 \uC911\uC774\uB358 \uD504\uB85C\uC138\uC2A4\uB294 \uC885\uB8CC\uB418\uC5B4 \uBCF5\uC6D0\uB418\uC9C0 \uC54A\uC558\uACE0, \uD654\uBA74 \uAE30\uB85D\uB9CC \uB2E4\uC2DC \uADF8\uB838\uC2B5\uB2C8\uB2E4]",
   "restore.degraded": "\uD130\uBBF8\uB110 \uBCF5\uC6D0 \uC0AC\uC774\uB4DC\uCE74\uC5D0 \uB2FF\uC9C0 \uBABB\uD574 \uBCF5\uC6D0\uC774 \uC81C\uD55C\uB429\uB2C8\uB2E4(\uBD09\uC778 \uAE30\uB85D\uC73C\uB85C \uD3F4\uBC31).",
+  "restore.degraded-fresh": "\uBCF5\uC6D0 \uC11C\uBE44\uC2A4 \uBBF8\uAC00\uB3D9 \u2014 \uD654\uBA74 \uAE30\uB85D \uC5C6\uC774 \uC0C8 \uC178\uB85C \uC2DC\uC791\uD569\uB2C8\uB2E4.",
   "restore.cold-blocked": "\uBD09\uC778 \uD654\uBA74 \uBCF5\uC6D0\uC774 \uCC28\uB2E8\uB418\uC5B4 \uB77C\uC774\uBE0C\uB9CC \uC2DC\uC791\uD569\uB2C8\uB2E4.",
   "sidecar.spawn-failed": "\uD130\uBBF8\uB110 \uBCF5\uC6D0 \uC0AC\uC774\uB4DC\uCE74 \uC2A4\uD3F0\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.",
   "sidecar.subscribe-timeout": "\uBCF5\uC6D0 \uC0AC\uC774\uB4DC\uCE74\uAC00 \uC774 \uC138\uC158\uC744 \uC81C\uB54C \uAD6C\uB3C5\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4 \u2014 \uC774 \uC138\uC158\uC758 \uBCF5\uC6D0 \uCDA9\uC2E4\uB3C4\uAC00 \uC81C\uD55C\uB429\uB2C8\uB2E4."
@@ -3221,7 +3223,7 @@ async function ensureSession(app, paneId, cols, rows) {
 }
 async function orchestrateRestore(app, paneId, writeInert) {
   const pty = app.pty;
-  if (!pty) return { replay: void 0, painted: false };
+  if (!pty) return { replay: "none", painted: false };
   try {
     const reply = await pty.sidecarRequest({ op: "rehydrate", pane: paneId });
     if (reply.ok === true) {
@@ -3238,7 +3240,7 @@ async function orchestrateRestore(app, paneId, writeInert) {
 }
 async function coldOrFresh(app, paneId, writeInert, sidecarDown) {
   const pty = app.pty;
-  if (!pty) return { replay: void 0, painted: false };
+  if (!pty) return { replay: "none", painted: false };
   try {
     const sealed = await pty.readSealedScreen(paneId);
     if (sealed) {
@@ -3253,9 +3255,14 @@ async function coldOrFresh(app, paneId, writeInert, sidecarDown) {
     });
   }
   if (sidecarDown) {
-    return { replay: void 0, painted: false, deferToCoreRestore: true };
+    writeInert(`\x1B[2m${t("restore.degraded-fresh", app.locale())}\x1B[0m\r
+`);
+    app.activity.publish("terminal.restore.degraded-fresh", {
+      message: t("restore.degraded-fresh", app.locale())
+    });
+    return { replay: "none", painted: false };
   }
-  return { replay: void 0, painted: false };
+  return { replay: "none", painted: false };
 }
 
 // src/plugin-entry.ts

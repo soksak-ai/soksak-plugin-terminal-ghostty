@@ -85,25 +85,40 @@ export async function orchestrateRestore(
   const pty = app.pty;
   if (!pty) return { replay: "none", painted: false };
 
-  // 1) warm — 라이브 미러에서 rehydrate(사이드카 서비스 소켓 릴레이). 연결 실패는 throw(사망 loud).
-  try {
-    const reply = await pty.sidecarRequest({ op: "rehydrate", pane: paneId });
-    if (reply.ok === true) {
-      const data = reply.data as { paint: string; uptoSeq: number; altActive: boolean };
-      writeInert(b64ToBytes(data.paint));
-      // 소비자가 uptoSeq 까지 그렸다 → 코어는 그 seq 부터 raw 링을 이어 붙인다(레이스-프리).
-      return { replay: { fromSeq: data.uptoSeq }, painted: true };
+  // 1) warm — 라이브 미러에서 rehydrate(사이드카 서비스 소켓 릴레이).
+  //
+  // 사이드카 스폰(ensureSidecar)은 비동기라 부팅 직후엔 서비스 소켓이 아직 없어 connect 가
+  // 거부되고 rehydrate 가 throw 한다. 즉시 degraded 로 떨어지면 '이력 있는 복원 터미널이 사이드카
+  // 기동을 앞지르는' 부팅-레이스에서 warm 복원을 잃는다(부팅 순서라는 우연이 복원 유실을 만들면
+  // 안 된다). 그래서 사이드카가 뜰 때까지 유계 백오프 재시도한다 — 부팅 핸드셰이크(총 수 초 상한),
+  // 메인라인 폴링 아님(종료 조건 = 사이드카 응답 or 데드라인 소진). ensureSession(재시도)과 같은
+  // 패턴. 사이드카가 '응답'하면 즉시 반환한다: ok:true=warm, ok:false(NOT_FOUND)=미러 없음→cold/fresh
+  // (둘 다 재시도 아님 — 사이드카가 답했다). 소진 후에만 degraded 를 선언한다.
+  const deadline = Date.now() + 4000;
+  let delay = 100;
+  for (;;) {
+    try {
+      const reply = await pty.sidecarRequest({ op: "rehydrate", pane: paneId });
+      if (reply.ok === true) {
+        const data = reply.data as { paint: string; uptoSeq: number; altActive: boolean };
+        writeInert(b64ToBytes(data.paint));
+        // 소비자가 uptoSeq 까지 그렸다 → 코어는 그 seq 부터 raw 링을 이어 붙인다(레이스-프리).
+        return { replay: { fromSeq: data.uptoSeq }, painted: true };
+      }
+      // ok:false(NOT_FOUND 등) — 사이드카가 떴고 이 pane 미러 없음 → cold/fresh(재시도 아님).
+      return coldOrFresh(app, paneId, writeInert, false);
+    } catch {
+      // 사이드카 소켓 미도달(스폰 중) — 데드라인까지 유계 재시도.
+      if (Date.now() >= deadline) break;
+      await new Promise((res) => setTimeout(res, delay));
+      delay = Math.min(delay * 2, 1000);
     }
-    // ok:false(NOT_FOUND 등) — 라이브 미러 없음 → cold/fresh 로.
-  } catch {
-    // 사이드카 사망 — degraded loud 고지 + 리스폰. 봉인 폴백(사이드카 불요)으로 내려간다.
-    app.activity.publish("terminal.restore.degraded", { message: t("restore.degraded", app.locale()) });
-    ensureSidecar(app);
-    return coldOrFresh(app, paneId, writeInert, true);
   }
 
-  // 2) cold or fresh.
-  return coldOrFresh(app, paneId, writeInert, false);
+  // 2) 재시도 소진 — 사이드카가 끝내 안 떴다. degraded loud 고지 + 리스폰, 봉인 폴백(사이드카 불요).
+  app.activity.publish("terminal.restore.degraded", { message: t("restore.degraded", app.locale()) });
+  ensureSidecar(app);
+  return coldOrFresh(app, paneId, writeInert, true);
 }
 
 async function coldOrFresh(

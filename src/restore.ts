@@ -10,7 +10,7 @@ import { t } from "./i18n";
 // 이 플러그인이 소비하는 **계약**. 그 계약을 어느 엔진 유닛이 구현하는지는 이 번들이 정하지 않는다 —
 // 매니페스트 sidecars[] 가 정한다(SPEC: "The plugin manifest selects the unit"). 유닛명을 여기 상수로
 // 굳히면 매니페스트만 바꿨을 때 옛 유닛이 무음으로 스폰된다(declared ≠ actual).
-export const TERMINAL_CONTRACT = "soksak-sidecar-terminal-spec@1";
+export const TERMINAL_CONTRACT = "soksak-spec-sidecar-terminal";
 
 // 스폰은 항상 replay 를 명시한다 — undefined("코어 기본")는 없다. "none"=소비자 소유 또는
 // 신선(코어 재생 없음), {fromSeq}=warm 핸드오프.

@@ -3187,7 +3187,7 @@ function t(key, lang) {
 }
 
 // src/restore.ts
-var TERMINAL_CONTRACT = "soksak-sidecar-terminal-spec@1";
+var TERMINAL_CONTRACT = "soksak-spec-sidecar-terminal";
 function b64ToBytes(b64) {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);

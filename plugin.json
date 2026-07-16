@@ -5,7 +5,7 @@
     "ko": "터미널(고스티)",
     "en": "Terminal (Ghostty)"
   },
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": {
     "ko": "Ghostty VT 엔진 기반 터미널 — 기존 터미널과 나란히 추가되는 두 번째 터미널 프로그램.",
     "en": "Terminal powered by the Ghostty VT engine — a second terminal program alongside the existing one."
@@ -14,7 +14,10 @@
   "sidecars": [
     {
       "name": "terminal-alacritty",
-      \"interface\": { \"id\": \"soksak-spec-sidecar-terminal\", \"range\": \"0.0.1\" }
+      "interface": {
+        "id": "soksak-spec-sidecar-terminal",
+        "range": "0.0.1"
+      }
     }
   ],
   "permissions": [
@@ -28,7 +31,10 @@
     "data"
   ],
   "implements": [
-    "soksak-spec-plugin-terminal"
+    {
+      "id": "soksak-spec-plugin-terminal",
+      "version": "0.0.1"
+    }
   ],
   "contributes": {
     "programs": [

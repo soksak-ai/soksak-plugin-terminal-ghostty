@@ -10,5 +10,14 @@
     "ghostty-web": "^0.4.0",
     "typescript": "^7.0.2",
     "soksak-kit-terminal-common": "github:soksak-ai/soksak-kit-terminal-common"
+  },
+  "name": "soksak-plugin-terminal-ghostty",
+  "private": true,
+  "version": "0.0.1",
+  "soksakRelease": {
+    "kind": "plugin",
+    "id": "soksak-plugin-terminal-ghostty",
+    "repository": "https://github.com/soksak-ai/soksak-plugin-terminal-ghostty",
+    "manifest": "release.json"
   }
 }

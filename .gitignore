@@ -1,3 +1,4 @@
 .soksak.json
 node_modules/
 tsconfig.paths.json
+dist/

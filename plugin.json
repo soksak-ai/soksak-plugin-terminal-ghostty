@@ -2,13 +2,13 @@
   "spec": "soksak-spec-plugin@0.0.1",
   "id": "soksak-plugin-terminal-ghostty",
   "name": {
-    "ko": "터미널(고스티)",
+    "ko": "\ud130\ubbf8\ub110(\uace0\uc2a4\ud2f0)",
     "en": "Terminal (Ghostty)"
   },
   "version": "0.0.1",
   "description": {
-    "ko": "Ghostty VT 엔진 기반 터미널 — 기존 터미널과 나란히 추가되는 두 번째 터미널 프로그램.",
-    "en": "Terminal powered by the Ghostty VT engine — a second terminal program alongside the existing one."
+    "ko": "Ghostty VT \uc5d4\uc9c4 \uae30\ubc18 \ud130\ubbf8\ub110 \u2014 \uae30\uc874 \ud130\ubbf8\ub110\uacfc \ub098\ub780\ud788 \ucd94\uac00\ub418\ub294 \ub450 \ubc88\uc9f8 \ud130\ubbf8\ub110 \ud504\ub85c\uadf8\ub7a8.",
+    "en": "Terminal powered by the Ghostty VT engine \u2014 a second terminal program alongside the existing one."
   },
   "entry": "main.js",
   "sidecars": [
@@ -41,7 +41,7 @@
       {
         "id": "terminal-ghostty",
         "title": {
-          "ko": "터미널(고스티)",
+          "ko": "\ud130\ubbf8\ub110(\uace0\uc2a4\ud2f0)",
           "en": "Terminal (Ghostty)"
         },
         "kind": "view",
@@ -52,10 +52,10 @@
       {
         "id": "content",
         "title": {
-          "ko": "터미널(고스티)",
+          "ko": "\ud130\ubbf8\ub110(\uace0\uc2a4\ud2f0)",
           "en": "Terminal (Ghostty)"
         },
-        "icon": "🬀",
+        "icon": "\ud83e\udf00",
         "placements": [
           "content"
         ],
@@ -70,7 +70,7 @@
       {
         "name": "ping",
         "title": {
-          "ko": "핑",
+          "ko": "\ud551",
           "en": "Ping"
         }
       }
@@ -79,7 +79,7 @@
       {
         "id": "terminal",
         "description": {
-          "ko": "Ghostty 터미널 컨테이너",
+          "ko": "Ghostty \ud130\ubbf8\ub110 \ucee8\ud14c\uc774\ub108",
           "en": "Ghostty terminal container"
         }
       }

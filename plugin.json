@@ -13,7 +13,7 @@
   "entry": "main.js",
   "sidecars": [
     {
-      "name": "terminal-alacritty",
+      "name": "terminal-ghostty",
       "interface": {
         "id": "soksak-spec-sidecar-terminal",
         "range": "0.0.1"

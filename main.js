@@ -3353,19 +3353,23 @@ function registerTerminalCommands(ctx, registry2) {
   if (!app.commands) return;
   const sub = (d2) => ctx.subscriptions.push(d2);
   const readHint = (d2, why) => d2.ok && typeof d2.viewId === "string" ? [{ cmd: `sok term.read '{"pane":"${d2.viewId}"}'`, why }] : [];
+  const VIEW_PARAM = {
+    view: { type: "string", description: "Target view id (omit = first active terminal)" }
+  };
   sub(
     app.commands.register("send", {
-      description: "Send text to the active terminal PTY.",
+      description: "Send text to a terminal PTY (target view, else the first active terminal).",
       triggers: { ko: "\uD130\uBBF8\uB110 \uD14D\uC2A4\uD2B8 \uC804\uC1A1 \uC785\uB825" },
       params: {
-        text: { type: "string", description: "Text to send to the terminal", required: true }
+        text: { type: "string", description: "Text to send to the terminal", required: true },
+        ...VIEW_PARAM
       },
       returns: "{ ok, viewId? }",
       message: () => "\uD130\uBBF8\uB110\uC5D0 \uD14D\uC2A4\uD2B8\uB97C \uC804\uC1A1\uD588\uC2B5\uB2C8\uB2E4.",
       // 전송은 즉시 돌아온다 — 출력은 잠시 후 그 터미널을 core term.read 로 확인한다(pane=이 viewId).
       hint: (d2) => readHint(d2, "\uC7A0\uC2DC \uD6C4 \uC774 \uD130\uBBF8\uB110\uC744 \uC77D\uC5B4 \uCD9C\uB825\uC744 \uD655\uC778\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."),
       handler: (p) => {
-        const entry = registry2.first();
+        const entry = registry2.resolve(p.view);
         if (!entry) return { ok: false, code: "NO_TARGET", message: "no active terminal" };
         entry.renderer.sendInput(String(p.text ?? ""));
         return { ok: true, viewId: entry.viewId };
@@ -3374,12 +3378,13 @@ function registerTerminalCommands(ctx, registry2) {
   );
   sub(
     app.commands.register("clear", {
-      description: "Clear the active terminal screen.",
+      description: "Clear a terminal screen (target view, else the first active terminal).",
       triggers: { ko: "\uD130\uBBF8\uB110 \uC9C0\uC6B0\uAE30 \uD074\uB9AC\uC5B4" },
+      params: { ...VIEW_PARAM },
       returns: "{ ok, viewId? }",
       message: () => "\uD130\uBBF8\uB110 \uD654\uBA74\uC744 \uC9C0\uC6E0\uC2B5\uB2C8\uB2E4.",
-      handler: () => {
-        const entry = registry2.first();
+      handler: (p) => {
+        const entry = registry2.resolve(p.view);
         if (!entry) return { ok: false, code: "NO_TARGET", message: "no active terminal" };
         entry.renderer.clear();
         return { ok: true, viewId: entry.viewId };
@@ -3390,10 +3395,11 @@ function registerTerminalCommands(ctx, registry2) {
     app.commands.register("resume", {
       // [R9] 복원된 블록의 claude 세션을 이어간다 — 사용자 명시 액션만(auto-trigger 0). sessionId 는
       // UUID 화이트리스트로 엄격 검증해 위조 history·셸 injection 을 차단한다.
-      description: "Resume a tracked claude session in the active terminal by its sessionId. User-initiated only; the sessionId must be a valid UUID.",
+      description: "Resume a tracked claude session by its sessionId in a terminal (target view, else the first active). User-initiated only; the sessionId must be a valid UUID.",
       triggers: { ko: "\uC138\uC158 \uC774\uC5B4\uAC00\uAE30 \uC7AC\uAC1C resume" },
       params: {
-        session: { type: "string", description: "claude sessionId (UUID) to resume", required: true }
+        session: { type: "string", description: "claude sessionId (UUID) to resume", required: true },
+        ...VIEW_PARAM
       },
       returns: "{ ok, session, viewId? }",
       message: (d2) => `\uC138\uC158 ${d2.session} \uC744 \uC774\uC5B4\uAC11\uB2C8\uB2E4.`,
@@ -3403,7 +3409,7 @@ function registerTerminalCommands(ctx, registry2) {
         if (!UUID_RE.test(sid)) {
           return { ok: false, code: "INVALID_INPUT", message: "invalid sessionId (UUID required)" };
         }
-        const entry = registry2.first();
+        const entry = registry2.resolve(p.view);
         if (!entry) return { ok: false, code: "NO_TARGET", message: "no active terminal" };
         entry.renderer.sendInput(`claude --resume ${sid}\r`);
         return { ok: true, session: sid, viewId: entry.viewId };
@@ -3448,7 +3454,8 @@ function resizeSplit(node, splitId, sizes) {
 }
 
 // ../../kits/soksak-kit-terminal-common/src/pane-split.ts
-var DIVIDER_PX = 5;
+var DIVIDER_PX = 1;
+var DRAG_PAD = 4;
 var MIN_FRAC = 0.05;
 async function createPaneSplitHost(opts) {
   const { container, createRenderer, mintPaneId, onEmpty } = opts;
@@ -3504,19 +3511,22 @@ async function createPaneSplitHost(opts) {
   const makeDivider = (node, gapIndex, group, childEls) => {
     const horizontal = node.dir === "row";
     const d2 = document.createElement("div");
-    d2.style.cssText = `flex:0 0 ${DIVIDER_PX}px;cursor:${horizontal ? "col-resize" : "row-resize"};display:flex;align-items:center;justify-content:center;background:transparent;transition:background 0.12s;z-index:1`;
-    const line = document.createElement("div");
-    line.style.cssText = horizontal ? "width:1px;align-self:stretch;background:var(--divider-line-color, rgba(128,128,128,0.35))" : "height:1px;width:100%;background:var(--divider-line-color, rgba(128,128,128,0.35))";
-    d2.appendChild(line);
+    const LINE = "var(--divider-line-color, rgba(128,128,128,0.35))";
+    const ACCENT = "var(--divider-hover-color, rgba(96,165,250,0.85))";
+    d2.style.cssText = `flex:0 0 ${DIVIDER_PX}px;position:relative;background:${LINE};transition:background 0.12s,box-shadow 0.12s;z-index:2`;
+    const hit = document.createElement("div");
+    hit.style.cssText = horizontal ? `position:absolute;top:0;bottom:0;left:-${DRAG_PAD}px;right:-${DRAG_PAD}px;cursor:col-resize` : `position:absolute;left:0;right:0;top:-${DRAG_PAD}px;bottom:-${DRAG_PAD}px;cursor:row-resize`;
+    d2.appendChild(hit);
     let dragging = false;
     const hl = (on) => {
-      d2.style.background = on ? "var(--divider-hover-color, rgba(120,120,120,0.28))" : "transparent";
+      d2.style.background = on ? ACCENT : LINE;
+      d2.style.boxShadow = on ? `0 0 0 1.5px var(--divider-band-color, rgba(96,165,250,0.3))` : "none";
     };
-    d2.addEventListener("mouseenter", () => hl(true));
-    d2.addEventListener("mouseleave", () => {
+    hit.addEventListener("mouseenter", () => hl(true));
+    hit.addEventListener("mouseleave", () => {
       if (!dragging) hl(false);
     });
-    d2.addEventListener("mousedown", (e3) => {
+    hit.addEventListener("mousedown", (e3) => {
       e3.preventDefault();
       dragging = true;
       hl(true);
@@ -3561,7 +3571,7 @@ async function createPaneSplitHost(opts) {
         document.body.style.userSelect = prevUserSelect;
         for (const { host } of hosts.values()) host.style.pointerEvents = "";
         dragging = false;
-        hl(d2.matches(":hover"));
+        hl(hit.matches(":hover"));
         tree = resizeSplit(tree, node.id, next);
         for (const { renderer } of hosts.values()) renderer.fit();
       };
@@ -3616,6 +3626,42 @@ async function createPaneSplitHost(opts) {
       });
       hosts.clear();
       container.replaceChildren();
+    }
+  };
+}
+
+// ../../kits/soksak-kit-terminal-common/src/active-pane-proxy.ts
+function createActivePaneProxy(host) {
+  const active = () => host.active()?.renderer;
+  const fallback = document.createElement("div");
+  return {
+    get element() {
+      return active()?.element ?? fallback;
+    },
+    get restorePainted() {
+      return active()?.restorePainted ?? false;
+    },
+    focus: () => active()?.focus(),
+    prepareFocusTransfer: () => active()?.prepareFocusTransfer(),
+    fit: () => active()?.fit(),
+    sendInput: (data) => active()?.sendInput(data),
+    readBuffer: (lines) => active()?.readBuffer(lines) ?? "",
+    write: (data) => active()?.write(data),
+    clear: () => active()?.clear(),
+    dispose: async () => {
+    },
+    // pane 수명은 split 호스트 소유 — 프록시는 아무것도 안 닫는다
+    paste: (text) => active()?.paste?.(text),
+    setScreenSuspended: (suspended) => active()?.setScreenSuspended?.(suspended),
+    applySettings: (settings) => active()?.applySettings?.(settings),
+    perfStats: () => {
+      const r2 = active();
+      if (!r2?.perfStats) throw new Error("no active pane");
+      return r2.perfStats();
+    },
+    echoProbe: () => {
+      const r2 = active();
+      return r2?.echoProbe ? r2.echoProbe() : Promise.reject(new Error("no active pane"));
     }
   };
 }
@@ -3823,6 +3869,7 @@ function mountTerminal(container, ctx, vctx) {
         focus: () => h.active()?.renderer.focus(),
         prepareFocusTransfer: () => h.active()?.renderer.prepareFocusTransfer()
       });
+      registry.set(viewId, createActivePaneProxy(h));
       vctx.setStatus(null);
     }).catch(fail);
     return () => cleanup(m2, viewId, container);

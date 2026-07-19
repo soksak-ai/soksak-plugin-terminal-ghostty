@@ -101,6 +101,13 @@
           "ko": "\ud0ed \ub0b4 \ubd84\ud560",
           "en": "Split Pane (Within-Tab)"
         }
+      },
+      {
+        "name": "close-pane",
+        "title": {
+          "ko": "\ud0ed \ub0b4 pane \ub2eb\uae30",
+          "en": "Close Pane (Within-Tab)"
+        }
       }
     ],
     "nodes": [

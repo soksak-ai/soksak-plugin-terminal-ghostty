@@ -1,7 +1,7 @@
 // soksak-plugin-terminal-ghostty — Ghostty VT 엔진(WASM) 터미널의 진입점.
 // 렌더러(term)+PTY+복원+IME 는 renderer.ts(createGhosttyRenderer)가 소유한다. 마운트 오케스트레이션
 // (splitMode 분기·IO/포커스/명령 레지스트리·정리·split-pane 명령)은 kit(mountTerminalView·
-// registerSplitPaneCommand)이 소유한다 — 여기는 렌더러 팩토리와 뷰 컨테이너·제목만 준다(xterm 과 대칭).
+// registerPaneCommands)이 소유한다 — 여기는 렌더러 팩토리와 뷰 컨테이너·제목만 준다(xterm 과 대칭).
 import { createGhosttyRenderer } from "./renderer";
 import {
   ensureSidecar,
@@ -9,7 +9,7 @@ import {
   createTerminalRegistry,
   registerTerminalCommands,
   mountTerminalView,
-  registerSplitPaneCommand,
+  registerPaneCommands,
   type FocusCoordinator,
   type TerminalViewHandle,
   type PluginContext,
@@ -110,7 +110,7 @@ export default {
         }),
       );
       // split-pane — kit 이 명령 모양·i18n 을 소유. 대상 호스트 해소만 여기서(view 지정 또는 첫 within-tab).
-      registerSplitPaneCommand(ctx, (view) => {
+      registerPaneCommands(ctx, (view) => {
         const viewId = view ?? [...mounts].find(([, m]) => m.handle.splitHost)?.[0];
         const m = viewId ? mounts.get(viewId) : undefined;
         return m?.handle.splitHost ? { viewId: viewId!, host: m.handle.splitHost } : null;

@@ -3484,10 +3484,13 @@ async function createPaneSplitHost(opts) {
   const makeDivider = (node, gapIndex, group, childEls) => {
     const horizontal = node.dir === "row";
     const d2 = document.createElement("div");
-    d2.style.cssText = `flex:0 0 ${DIVIDER_PX}px;cursor:${horizontal ? "col-resize" : "row-resize"};background:transparent;transition:background 0.12s;z-index:1`;
+    d2.style.cssText = `flex:0 0 ${DIVIDER_PX}px;cursor:${horizontal ? "col-resize" : "row-resize"};display:flex;align-items:center;justify-content:center;background:transparent;transition:background 0.12s;z-index:1`;
+    const line = document.createElement("div");
+    line.style.cssText = horizontal ? "width:1px;align-self:stretch;background:var(--divider-line-color, rgba(128,128,128,0.35))" : "height:1px;width:100%;background:var(--divider-line-color, rgba(128,128,128,0.35))";
+    d2.appendChild(line);
     let dragging = false;
     const hl = (on) => {
-      d2.style.background = on ? "var(--divider-hover-color, rgba(120,120,120,0.5))" : "transparent";
+      d2.style.background = on ? "var(--divider-hover-color, rgba(120,120,120,0.28))" : "transparent";
     };
     d2.addEventListener("mouseenter", () => hl(true));
     d2.addEventListener("mouseleave", () => {
@@ -3507,6 +3510,14 @@ async function createPaneSplitHost(opts) {
       const startA = node.sizes[a];
       const startB = node.sizes[b2];
       const next = [...node.sizes];
+      let fitRaf = 0;
+      const scheduleFit = () => {
+        if (fitRaf) return;
+        fitRaf = requestAnimationFrame(() => {
+          fitRaf = 0;
+          for (const { renderer } of hosts.values()) renderer.fit();
+        });
+      };
       const onMove = (ev) => {
         const cur = horizontal ? ev.clientX : ev.clientY;
         const df = (cur - start) / flexible;
@@ -3517,10 +3528,12 @@ async function createPaneSplitHost(opts) {
         next[b2] = sb;
         childEls[a].style.flex = `${sa} 1 0`;
         childEls[b2].style.flex = `${sb} 1 0`;
+        scheduleFit();
       };
       const onUp = () => {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+        if (fitRaf) cancelAnimationFrame(fitRaf);
         dragging = false;
         hl(d2.matches(":hover"));
         tree = resizeSplit(tree, node.id, next);

@@ -3459,21 +3459,26 @@ async function createPaneSplitHost(opts) {
     const h = document.createElement("div");
     h.style.cssText = "position:relative;overflow:hidden;min-width:0;min-height:0;width:100%;height:100%";
     h.appendChild(r2.element);
-    h.addEventListener(
-      "focusin",
-      () => {
-        activePane = paneId;
-        applyActiveStyle();
-      },
-      true
-    );
+    const overlay = document.createElement("div");
+    overlay.dataset.paneOverlay = "1";
+    overlay.style.cssText = "position:absolute;inset:0;pointer-events:none;box-sizing:border-box;z-index:3;border:2px solid transparent;transition:border-color 0.1s";
+    h.appendChild(overlay);
+    const activate = () => {
+      if (activePane === paneId) return;
+      activePane = paneId;
+      applyActiveStyle();
+    };
+    h.addEventListener("focusin", activate, true);
+    h.addEventListener("mousedown", activate, true);
     return h;
   };
   function applyActiveStyle() {
     const multi = hosts.size > 1;
     for (const [id, { host }] of hosts) {
-      host.style.outline = multi && id === activePane ? "1px solid var(--pane-active-color, rgba(96,165,250,0.75))" : "none";
-      host.style.outlineOffset = "-1px";
+      const overlay = host.querySelector("[data-pane-overlay]");
+      if (overlay) {
+        overlay.style.borderColor = multi && id === activePane ? "var(--pane-active-color, rgba(96,165,250,0.9))" : "transparent";
+      }
     }
   }
   const renderNode = (node) => {

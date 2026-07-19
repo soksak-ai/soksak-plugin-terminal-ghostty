@@ -3459,9 +3459,23 @@ async function createPaneSplitHost(opts) {
     const h = document.createElement("div");
     h.style.cssText = "position:relative;overflow:hidden;min-width:0;min-height:0;width:100%;height:100%";
     h.appendChild(r2.element);
-    h.addEventListener("focusin", () => activePane = paneId, true);
+    h.addEventListener(
+      "focusin",
+      () => {
+        activePane = paneId;
+        applyActiveStyle();
+      },
+      true
+    );
     return h;
   };
+  function applyActiveStyle() {
+    const multi = hosts.size > 1;
+    for (const [id, { host }] of hosts) {
+      host.style.outline = multi && id === activePane ? "1px solid var(--pane-active-color, rgba(96,165,250,0.75))" : "none";
+      host.style.outlineOffset = "-1px";
+    }
+  }
   const renderNode = (node) => {
     if (node.type === "leaf") return hosts.get(node.pane).host;
     const group = document.createElement("div");
@@ -3480,6 +3494,7 @@ async function createPaneSplitHost(opts) {
   const render = () => {
     container.replaceChildren(renderNode(tree));
     for (const { renderer } of hosts.values()) renderer.fit();
+    applyActiveStyle();
   };
   const makeDivider = (node, gapIndex, group, childEls) => {
     const horizontal = node.dir === "row";
@@ -3507,9 +3522,13 @@ async function createPaneSplitHost(opts) {
       const start = horizontal ? e3.clientX : e3.clientY;
       const a = gapIndex - 1;
       const b2 = gapIndex;
-      const startA = node.sizes[a];
-      const startB = node.sizes[b2];
-      const next = [...node.sizes];
+      const readGrow = (el) => parseFloat(el.style.flex) || 0;
+      const next = childEls.map(readGrow);
+      const startA = next[a];
+      const startB = next[b2];
+      const prevUserSelect = document.body.style.userSelect;
+      document.body.style.userSelect = "none";
+      for (const { host } of hosts.values()) host.style.pointerEvents = "none";
       let fitRaf = 0;
       const scheduleFit = () => {
         if (fitRaf) return;
@@ -3531,16 +3550,18 @@ async function createPaneSplitHost(opts) {
         scheduleFit();
       };
       const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
+        window.removeEventListener("mousemove", onMove, true);
+        window.removeEventListener("mouseup", onUp, true);
         if (fitRaf) cancelAnimationFrame(fitRaf);
+        document.body.style.userSelect = prevUserSelect;
+        for (const { host } of hosts.values()) host.style.pointerEvents = "";
         dragging = false;
         hl(d2.matches(":hover"));
         tree = resizeSplit(tree, node.id, next);
         for (const { renderer } of hosts.values()) renderer.fit();
       };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+      window.addEventListener("mousemove", onMove, true);
+      window.addEventListener("mouseup", onUp, true);
     });
     return d2;
   };
@@ -3560,6 +3581,7 @@ async function createPaneSplitHost(opts) {
       tree = splitPane(tree, target, paneId, dir, "after", `sp-${splitSeq++}`);
       activePane = paneId;
       render();
+      r2.focus();
       return paneId;
     },
     async close(paneId) {

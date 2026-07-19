@@ -94,6 +94,13 @@
           "ko": "\uc138\uc158 \uc774\uc5b4\uac00\uae30",
           "en": "Resume Session"
         }
+      },
+      {
+        "name": "split-pane",
+        "title": {
+          "ko": "\ud0ed \ub0b4 \ubd84\ud560",
+          "en": "Split Pane (Within-Tab)"
+        }
       }
     ],
     "nodes": [
@@ -105,5 +112,34 @@
         }
       }
     ]
-  }
+  },
+  "configuration": [
+    {
+      "key": "splitMode",
+      "type": "enum",
+      "default": "tab",
+      "title": {
+        "ko": "\ubd84\ud560 \ubc29\uc2dd",
+        "en": "Split mode"
+      },
+      "description": {
+        "ko": "\ud130\ubbf8\ub110 \ubd84\ud560\uc744 \ud0ed(\ubcc4\ub3c4 \ud328\ub110)\uc73c\ub85c \ud560\uc9c0 \ud0ed \ub0b4\ubd80(\ubdf0 \uc548 pane)\ub85c \ud560\uc9c0.",
+        "en": "Whether a terminal split makes a new tab (panel) or an internal pane within the view."
+      },
+      "enum": [
+        "tab",
+        "within-tab"
+      ],
+      "enumLabels": [
+        {
+          "ko": "\ud0ed \ubd84\ud560",
+          "en": "Tab split"
+        },
+        {
+          "ko": "\ud0ed \ub0b4 \ubd84\ud560",
+          "en": "Within-tab split"
+        }
+      ]
+    }
+  ]
 }

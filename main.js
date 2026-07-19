@@ -3412,6 +3412,161 @@ function registerTerminalCommands(ctx, registry2) {
   );
 }
 
+// ../../kits/soksak-kit-terminal-common/src/pane-split-tree.ts
+var leaf = (pane) => ({ type: "leaf", pane });
+var equalSizes = (n2) => Array.from({ length: n2 }, () => 1 / n2);
+function panesOf(node) {
+  return node.type === "leaf" ? [node.pane] : node.children.flatMap(panesOf);
+}
+function splitPane(node, target, newPane, dir, side, splitId) {
+  if (node.type === "leaf") {
+    if (node.pane !== target) return node;
+    const kids = side === "after" ? [node, leaf(newPane)] : [leaf(newPane), node];
+    return { type: "split", id: splitId, dir, sizes: equalSizes(2), children: kids };
+  }
+  if (node.dir === dir) {
+    const idx = node.children.findIndex((c) => c.type === "leaf" && c.pane === target);
+    if (idx >= 0) {
+      const at = side === "after" ? idx + 1 : idx;
+      const children = [...node.children.slice(0, at), leaf(newPane), ...node.children.slice(at)];
+      return { ...node, sizes: equalSizes(children.length), children };
+    }
+  }
+  return { ...node, children: node.children.map((c) => splitPane(c, target, newPane, dir, side, splitId)) };
+}
+function removePane(node, pane) {
+  if (node.type === "leaf") return node.pane === pane ? null : node;
+  const kids = node.children.map((c) => removePane(c, pane)).filter((c) => c !== null);
+  if (kids.length === 0) return null;
+  if (kids.length === 1) return kids[0];
+  return { ...node, sizes: equalSizes(kids.length), children: kids };
+}
+function resizeSplit(node, splitId, sizes) {
+  if (node.type === "leaf") return node;
+  if (node.id === splitId && sizes.length === node.children.length) return { ...node, sizes };
+  return { ...node, children: node.children.map((c) => resizeSplit(c, splitId, sizes)) };
+}
+
+// ../../kits/soksak-kit-terminal-common/src/pane-split.ts
+var DIVIDER_PX = 5;
+var MIN_FRAC = 0.05;
+async function createPaneSplitHost(opts) {
+  const { container, createRenderer, mintPaneId, onEmpty } = opts;
+  const hosts = /* @__PURE__ */ new Map();
+  let tree;
+  let activePane = "";
+  const wrapHost = (paneId, r2) => {
+    const h = document.createElement("div");
+    h.style.cssText = "position:relative;overflow:hidden;min-width:0;min-height:0;width:100%;height:100%";
+    h.appendChild(r2.element);
+    h.addEventListener("focusin", () => activePane = paneId, true);
+    return h;
+  };
+  const renderNode = (node) => {
+    if (node.type === "leaf") return hosts.get(node.pane).host;
+    const group = document.createElement("div");
+    const horizontal = node.dir === "row";
+    group.style.cssText = `display:flex;flex-direction:${horizontal ? "row" : "column"};width:100%;height:100%;min-width:0;min-height:0`;
+    const childEls = [];
+    node.children.forEach((child, i) => {
+      if (i > 0) group.appendChild(makeDivider(node, i, group, childEls));
+      const el = renderNode(child);
+      el.style.flex = `${node.sizes[i]} 1 0`;
+      childEls.push(el);
+      group.appendChild(el);
+    });
+    return group;
+  };
+  const render = () => {
+    container.replaceChildren(renderNode(tree));
+    for (const { renderer } of hosts.values()) renderer.fit();
+  };
+  const makeDivider = (node, gapIndex, group, childEls) => {
+    const horizontal = node.dir === "row";
+    const d2 = document.createElement("div");
+    d2.style.cssText = `flex:0 0 ${DIVIDER_PX}px;cursor:${horizontal ? "col-resize" : "row-resize"};background:var(--divider-color, rgba(128,128,128,0.25));z-index:1`;
+    d2.addEventListener("mousedown", (e3) => {
+      e3.preventDefault();
+      const rect = group.getBoundingClientRect();
+      const total = horizontal ? rect.width : rect.height;
+      if (total <= 0) return;
+      const start = horizontal ? e3.clientX : e3.clientY;
+      const a = gapIndex - 1;
+      const b2 = gapIndex;
+      const startA = node.sizes[a];
+      const startB = node.sizes[b2];
+      const next = [...node.sizes];
+      const onMove = (ev) => {
+        const cur = horizontal ? ev.clientX : ev.clientY;
+        const df = (cur - start) / total;
+        const sa = startA + df;
+        const sb = startB - df;
+        if (sa < MIN_FRAC || sb < MIN_FRAC) return;
+        next[a] = sa;
+        next[b2] = sb;
+        childEls[a].style.flex = `${sa} 1 0`;
+        childEls[b2].style.flex = `${sb} 1 0`;
+      };
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        tree = resizeSplit(tree, node.id, next);
+        for (const { renderer } of hosts.values()) renderer.fit();
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    });
+    return d2;
+  };
+  const first = mintPaneId();
+  const r0 = await createRenderer(first);
+  hosts.set(first, { renderer: r0, host: wrapHost(first, r0) });
+  tree = leaf(first);
+  activePane = first;
+  render();
+  let splitSeq = 0;
+  return {
+    async split(dir) {
+      const target = hosts.has(activePane) ? activePane : panesOf(tree)[0];
+      const paneId = mintPaneId();
+      const r2 = await createRenderer(paneId);
+      hosts.set(paneId, { renderer: r2, host: wrapHost(paneId, r2) });
+      tree = splitPane(tree, target, paneId, dir, "after", `sp-${splitSeq++}`);
+      activePane = paneId;
+      render();
+      return paneId;
+    },
+    async close(paneId) {
+      const entry = hosts.get(paneId);
+      if (!entry) return;
+      hosts.delete(paneId);
+      await entry.renderer.dispose().catch(() => {
+      });
+      const next = removePane(tree, paneId);
+      if (!next) {
+        onEmpty?.();
+        return;
+      }
+      tree = next;
+      if (activePane === paneId) activePane = panesOf(tree)[0] ?? "";
+      render();
+    },
+    active() {
+      const e3 = hosts.get(activePane);
+      return e3 ? { paneId: activePane, renderer: e3.renderer } : null;
+    },
+    entries() {
+      return [...hosts.entries()].map(([id, e3]) => [id, e3.renderer]);
+    },
+    async dispose() {
+      for (const { renderer } of hosts.values()) await renderer.dispose().catch(() => {
+      });
+      hosts.clear();
+      container.replaceChildren();
+    }
+  };
+}
+
 // src/renderer.ts
 var FLOW_ACK_SIZE = 5e3;
 var initP = null;
@@ -3569,15 +3724,57 @@ function mountTerminal(container, ctx, vctx) {
     };
   }
   vctx.setStatus({ code: "connecting" });
-  const m2 = { focus: createFocusCoordinator(), renderer: null, io: null, disposed: false };
+  const m2 = {
+    focus: createFocusCoordinator(),
+    renderer: null,
+    splitHost: null,
+    io: null,
+    disposed: false
+  };
   mounts.set(viewId, m2);
-  void createGhosttyRenderer({
-    app,
-    viewId,
-    cwd: vctx.restore?.cwd ?? vctx.root ?? void 0,
-    initialCommand: vctx.command ?? void 0,
-    onTitle: (t3) => vctx.setTitle(t3)
-  }).then((r2) => {
+  const cwd = vctx.restore?.cwd ?? vctx.root ?? void 0;
+  const onTitle = (t3) => vctx.setTitle(t3);
+  const fail = (e3) => {
+    if (!m2.disposed) vctx.setStatus({ code: "error", message: `\uC5D4\uC9C4 \uCD08\uAE30\uD654 \uC2E4\uD328: ${e3}` });
+  };
+  const withinTab = String(app.settings.get("splitMode") ?? "tab") === "within-tab";
+  if (withinTab) {
+    let seq = 0;
+    let first = true;
+    void createPaneSplitHost({
+      container,
+      mintPaneId: () => `${viewId}~${seq++}`,
+      createRenderer: async (paneId) => {
+        const r2 = await createGhosttyRenderer({
+          app,
+          viewId: paneId,
+          cwd,
+          initialCommand: first ? vctx.command ?? void 0 : void 0,
+          onTitle
+        });
+        first = false;
+        return r2;
+      },
+      onEmpty: () => vctx.setStatus({ code: "error", message: "\uBE48 \uBDF0 \u2014 \uB9C8\uC9C0\uB9C9 pane \uC774 \uB2EB\uD614\uC2B5\uB2C8\uB2E4" })
+    }).then((h) => {
+      if (m2.disposed) {
+        void h.dispose();
+        return;
+      }
+      m2.splitHost = h;
+      m2.io = app.pty?.registerIo?.(viewId, {
+        readBuffer: (lines) => h.active()?.renderer.readBuffer(lines) ?? "",
+        sendInput: (data) => h.active()?.renderer.sendInput(data)
+      }) ?? null;
+      m2.focus.attach({
+        focus: () => h.active()?.renderer.focus(),
+        prepareFocusTransfer: () => h.active()?.renderer.prepareFocusTransfer()
+      });
+      vctx.setStatus(null);
+    }).catch(fail);
+    return () => cleanup(m2, viewId, container);
+  }
+  void createGhosttyRenderer({ app, viewId, cwd, initialCommand: vctx.command ?? void 0, onTitle }).then((r2) => {
     if (m2.disposed) {
       void r2.dispose();
       return;
@@ -3591,18 +3788,18 @@ function mountTerminal(container, ctx, vctx) {
     }) ?? null;
     m2.focus.attach({ focus: () => r2.focus(), prepareFocusTransfer: () => r2.prepareFocusTransfer() });
     vctx.setStatus(null);
-  }).catch((e3) => {
-    if (!m2.disposed) vctx.setStatus({ code: "error", message: `\uC5D4\uC9C4 \uCD08\uAE30\uD654 \uC2E4\uD328: ${e3}` });
-  });
-  return () => {
-    m2.disposed = true;
-    m2.focus.detach();
-    m2.io?.dispose();
-    void m2.renderer?.dispose();
-    registry.delete(viewId);
-    mounts.delete(viewId);
-    container.replaceChildren();
-  };
+  }).catch(fail);
+  return () => cleanup(m2, viewId, container);
+}
+function cleanup(m2, viewId, container) {
+  m2.disposed = true;
+  m2.focus.detach();
+  m2.io?.dispose();
+  void m2.renderer?.dispose();
+  void m2.splitHost?.dispose();
+  registry.delete(viewId);
+  mounts.delete(viewId);
+  container.replaceChildren();
 }
 var plugin_entry_default = {
   activate(ctx) {
@@ -3637,10 +3834,34 @@ var plugin_entry_default = {
           handler: () => ({ ok: true, plugin: "soksak-plugin-terminal-ghostty", engine: "ghostty" })
         })
       );
+      ctx.subscriptions.push(
+        app.commands.register("split-pane", {
+          description: "Split the terminal view into an internal pane (within-tab split; requires splitMode=within-tab).",
+          triggers: { ko: "\uD130\uBBF8\uB110 \uD0ED\uB0B4 \uBD84\uD560 \uB098\uB204\uAE30" },
+          params: {
+            view: { type: "string", description: "Target view id (omit = first within-tab view)" },
+            dir: { type: "string", description: "'right' (default) or 'down'" }
+          },
+          returns: "{ ok, viewId?, paneId? }",
+          message: (d2) => d2.ok ? `pane ${d2.paneId} \uC744 \uBD84\uD560\uD588\uC2B5\uB2C8\uB2E4.` : "\uBD84\uD560 \uB300\uC0C1 \uC5C6\uC74C",
+          handler: async (p) => {
+            const viewId = typeof p.view === "string" && p.view ? p.view : [...mounts].find(([, mm2]) => mm2.splitHost)?.[0];
+            const mm = viewId ? mounts.get(viewId) : void 0;
+            if (!mm?.splitHost) {
+              return { ok: false, code: "NO_TARGET", message: "no within-tab split host (set splitMode=within-tab)" };
+            }
+            const paneId = await mm.splitHost.split(p.dir === "down" ? "col" : "row");
+            return { ok: true, viewId, paneId };
+          }
+        })
+      );
     }
   },
   deactivate() {
-    for (const m2 of mounts.values()) void m2.renderer?.dispose();
+    for (const m2 of mounts.values()) {
+      void m2.renderer?.dispose();
+      void m2.splitHost?.dispose();
+    }
     mounts.clear();
   }
 };

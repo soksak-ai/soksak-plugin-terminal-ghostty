@@ -3417,9 +3417,10 @@ function registerTerminalCommands(ctx, registry2) {
     })
   );
 }
-function registerSplitPaneCommand(ctx, resolveHost) {
+function registerPaneCommands(ctx, resolveHost) {
   const app = ctx.app;
   if (!app.commands) return;
+  const noHost = { ok: false, code: "NO_TARGET", message: "no within-tab split host (set splitMode=within-tab)" };
   ctx.subscriptions.push(
     app.commands.register("split-pane", {
       description: "Split the terminal view into an internal pane (within-tab split; requires splitMode=within-tab).",
@@ -3429,17 +3430,32 @@ function registerSplitPaneCommand(ctx, resolveHost) {
         dir: { type: "string", description: "'right' (default) or 'down'" }
       },
       returns: "{ ok, viewId?, paneId? }",
-      message: (d2) => d2.ok ? `pane ${d2.paneId} \uC744 \uBD84\uD560\uD588\uC2B5\uB2C8\uB2E4.` : "\uBD84\uD560 \uB300\uC0C1 \uC5C6\uC74C",
+      // message 는 성공 outcome 의 data 만 받는다(ok 는 봉투에 있고 여기 없다) — paneId 유무로 판정.
+      message: (d2) => d2.paneId ? `pane ${d2.paneId} \uC744 \uBD84\uD560\uD588\uC2B5\uB2C8\uB2E4.` : "\uBD84\uD560 \uB300\uC0C1 \uC5C6\uC74C",
       handler: async (p) => {
         const target = resolveHost(typeof p.view === "string" && p.view ? p.view : void 0);
-        if (!target) {
-          return {
-            ok: false,
-            code: "NO_TARGET",
-            message: "no within-tab split host (set splitMode=within-tab)"
-          };
-        }
+        if (!target) return noHost;
         const paneId = await target.host.split(p.dir === "down" ? "col" : "row");
+        return { ok: true, viewId: target.viewId, paneId };
+      }
+    })
+  );
+  ctx.subscriptions.push(
+    app.commands.register("close-pane", {
+      description: "Close an internal within-tab pane by its paneId.",
+      triggers: { ko: "\uD130\uBBF8\uB110 \uD0ED\uB0B4 pane \uB2EB\uAE30" },
+      params: {
+        view: { type: "string", description: "The view that owns the pane (omit = first within-tab view)" },
+        pane: { type: "string", description: "The paneId to close", required: true }
+      },
+      returns: "{ ok, viewId?, paneId? }",
+      message: (d2) => d2.paneId ? `pane ${d2.paneId} \uC744 \uB2EB\uC558\uC2B5\uB2C8\uB2E4.` : "\uB2EB\uC744 pane \uC5C6\uC74C",
+      handler: async (p) => {
+        const target = resolveHost(typeof p.view === "string" && p.view ? p.view : void 0);
+        if (!target) return noHost;
+        const paneId = String(p.pane ?? "");
+        if (!paneId) return { ok: false, code: "INVALID_INPUT", message: "pane is required" };
+        await target.host.close(paneId);
         return { ok: true, viewId: target.viewId, paneId };
       }
     })
@@ -3715,6 +3731,17 @@ function mountTerminalView(app, opts) {
       createRenderer: async (paneId) => {
         const r2 = await createRenderer(paneId, first);
         first = false;
+        const paneIo = app.pty?.registerIo?.(paneId, {
+          readBuffer: (lines) => r2.readBuffer(lines),
+          sendInput: (data) => r2.sendInput(data)
+        });
+        if (paneIo) {
+          const origDispose = r2.dispose.bind(r2);
+          r2.dispose = async () => {
+            paneIo.dispose();
+            await origDispose();
+          };
+        }
         return r2;
       },
       onEmpty: () => setStatus({ code: "error", message: emptyMessage })
@@ -3985,7 +4012,7 @@ var plugin_entry_default = {
           handler: () => ({ ok: true, plugin: "soksak-plugin-terminal-ghostty", engine: "ghostty" })
         })
       );
-      registerSplitPaneCommand(ctx, (view) => {
+      registerPaneCommands(ctx, (view) => {
         const viewId = view ?? [...mounts].find(([, m3]) => m3.handle.splitHost)?.[0];
         const m2 = viewId ? mounts.get(viewId) : void 0;
         return m2?.handle.splitHost ? { viewId, host: m2.handle.splitHost } : null;

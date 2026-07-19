@@ -8,6 +8,7 @@ import { openWithoutImplicitFocus } from "./focus-contract";
 import {
   orchestrateRestore,
   ensureSession,
+  syncMirrorSize,
   type PluginApi,
   type Disposable,
   type TerminalRenderer,
@@ -111,7 +112,11 @@ export async function createGhosttyRenderer(
   // warm=사이드카 rehydrate→ghostty 페인트→from_seq, cold=봉인 블롭→페인트+소실 고지→"none".
   // orchestrateRestore 가 데몬에 warm 후보(라이브 세션)를 물어, 있을 때만 사이드카 rehydrate 를
   // 태운다 — 신선/cold 는 사이드카를 안 기다려 스폰이 안 밀린다. ghostty 는 floor 없어 painted 미사용.
-  const outcome = await orchestrateRestore(app, viewId, (d) => term.write(d));
+  // pane 현재 치수를 넘겨 rehydrate 전 미러를 이 폭으로 맞추게 한다(폭-정합 재도색).
+  const outcome = await orchestrateRestore(app, viewId, (d) => term.write(d), {
+    cols: term.cols,
+    rows: term.rows,
+  });
 
   // ── PTY 배선(코어 단일 진실) ──
   const ptyId = await pty.spawn({
@@ -170,6 +175,9 @@ export async function createGhosttyRenderer(
   subs.push(
     term.onResize(({ cols, rows }) => {
       void pty.resize(ptyId, cols, rows);
+      // 사이드카 미러도 같은 폭으로 맞춘다 — 코어 resize 는 데몬 PTY 만 바꾸므로, 안 맞추면 미러가
+      // 실 터미널과 어긋나 다음 warm rehydrate 가 격자를 깬다. best-effort(계약 resize op, 미구독=no-op).
+      void syncMirrorSize(app, viewId, cols, rows);
     }),
   );
   // 제목: OSC 0/2 → 탭 제목(콘텐츠 사실 채널).

@@ -3222,9 +3222,19 @@ async function ensureSession(app, paneId, cols, rows) {
     message: `${t("sidecar.subscribe-timeout", app.locale())} (${paneId})`
   });
 }
-async function orchestrateRestore(app, paneId, writeInert) {
+async function syncMirrorSize(app, paneId, cols, rows) {
+  const pty = app.pty;
+  if (!pty || cols < 1 || rows < 1) return;
+  try {
+    await pty.sidecarRequest({ op: "resize", pane: paneId, cols, rows });
+  } catch {
+  }
+}
+async function orchestrateRestore(app, paneId, writeInert, opts) {
   const pty = app.pty;
   if (!pty) return { replay: "none", painted: false };
+  const cols = opts?.cols;
+  const rows = opts?.rows;
   let warmCandidate = false;
   try {
     warmCandidate = await pty.paneAlive(paneId);
@@ -3232,6 +3242,7 @@ async function orchestrateRestore(app, paneId, writeInert) {
     warmCandidate = false;
   }
   if (warmCandidate) {
+    if (cols && rows) await syncMirrorSize(app, paneId, cols, rows);
     const deadline = Date.now() + 4e3;
     let delay = 100;
     for (; ; ) {
@@ -3960,7 +3971,10 @@ async function createGhosttyRenderer(opts) {
     attributeFilter: ["data-theme", "data-theme-mode", "style", "class"]
   });
   subs.push({ dispose: () => mo.disconnect() });
-  const outcome = await orchestrateRestore(app, viewId, (d2) => term.write(d2));
+  const outcome = await orchestrateRestore(app, viewId, (d2) => term.write(d2), {
+    cols: term.cols,
+    rows: term.rows
+  });
   const ptyId = await pty.spawn({
     cols: term.cols,
     rows: term.rows,
@@ -4002,6 +4016,7 @@ async function createGhosttyRenderer(opts) {
   subs.push(
     term.onResize(({ cols, rows }) => {
       void pty.resize(ptyId, cols, rows);
+      void syncMirrorSize(app, viewId, cols, rows);
     })
   );
   subs.push(term.onTitleChange((t3) => t3 && onTitle(t3)));
@@ -4070,6 +4085,8 @@ function mountTerminal(container, ctx, vctx) {
     registry,
     treeStore,
     // pane 마다 ghostty 렌더러(term+PTY+복원+IME). 첫 pane 만 initialCommand(에이전트 자동 실행).
+    // 복원은 pane 폭에 상관없이 동일하다 — kit orchestrateRestore 가 rehydrate 전 미러를 pane 폭으로
+    // 맞춰 warm 재부착(TUI·스크롤백)을 정확히 되살린다(within-tab 특례 없음).
     createRenderer: (paneId, isFirst) => createGhosttyRenderer({
       app,
       viewId: paneId,

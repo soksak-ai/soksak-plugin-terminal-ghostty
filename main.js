@@ -3417,6 +3417,34 @@ function registerTerminalCommands(ctx, registry2) {
     })
   );
 }
+function registerSplitPaneCommand(ctx, resolveHost) {
+  const app = ctx.app;
+  if (!app.commands) return;
+  ctx.subscriptions.push(
+    app.commands.register("split-pane", {
+      description: "Split the terminal view into an internal pane (within-tab split; requires splitMode=within-tab).",
+      triggers: { ko: "\uD130\uBBF8\uB110 \uD0ED\uB0B4 \uBD84\uD560 \uB098\uB204\uAE30" },
+      params: {
+        view: { type: "string", description: "Target view id (omit = first within-tab view)" },
+        dir: { type: "string", description: "'right' (default) or 'down'" }
+      },
+      returns: "{ ok, viewId?, paneId? }",
+      message: (d2) => d2.ok ? `pane ${d2.paneId} \uC744 \uBD84\uD560\uD588\uC2B5\uB2C8\uB2E4.` : "\uBD84\uD560 \uB300\uC0C1 \uC5C6\uC74C",
+      handler: async (p) => {
+        const target = resolveHost(typeof p.view === "string" && p.view ? p.view : void 0);
+        if (!target) {
+          return {
+            ok: false,
+            code: "NO_TARGET",
+            message: "no within-tab split host (set splitMode=within-tab)"
+          };
+        }
+        const paneId = await target.host.split(p.dir === "down" ? "col" : "row");
+        return { ok: true, viewId: target.viewId, paneId };
+      }
+    })
+  );
+}
 
 // ../../kits/soksak-kit-terminal-common/src/pane-split-tree.ts
 var leaf = (pane) => ({ type: "leaf", pane });
@@ -3666,6 +3694,79 @@ function createActivePaneProxy(host) {
   };
 }
 
+// ../../kits/soksak-kit-terminal-common/src/mount-terminal-view.ts
+function mountTerminalView(app, opts) {
+  const { mountRoot, viewId, withinTab, focus, registry: registry2, createRenderer, setStatus, emptyMessage } = opts;
+  const state = {
+    splitHost: null,
+    single: null,
+    io: null,
+    disposed: false
+  };
+  const fail = (err) => {
+    if (!state.disposed) setStatus({ code: "error", message: String(err) });
+  };
+  if (withinTab) {
+    let seq = 0;
+    let first = true;
+    void createPaneSplitHost({
+      container: mountRoot,
+      mintPaneId: () => `${viewId}~${seq++}`,
+      createRenderer: async (paneId) => {
+        const r2 = await createRenderer(paneId, first);
+        first = false;
+        return r2;
+      },
+      onEmpty: () => setStatus({ code: "error", message: emptyMessage })
+    }).then((h) => {
+      if (state.disposed) {
+        void h.dispose();
+        return;
+      }
+      state.splitHost = h;
+      state.io = app.pty?.registerIo?.(viewId, {
+        readBuffer: (lines) => h.active()?.renderer.readBuffer(lines) ?? "",
+        sendInput: (data) => h.active()?.renderer.sendInput(data)
+      }) ?? null;
+      focus.attach({
+        focus: () => h.active()?.renderer.focus(),
+        prepareFocusTransfer: () => h.active()?.renderer.prepareFocusTransfer()
+      });
+      registry2.set(viewId, createActivePaneProxy(h));
+      setStatus(null);
+    }).catch(fail);
+  } else {
+    void createRenderer(viewId, true).then((r2) => {
+      if (state.disposed) {
+        void r2.dispose();
+        return;
+      }
+      state.single = r2;
+      mountRoot.appendChild(r2.element);
+      state.io = app.pty?.registerIo?.(viewId, {
+        readBuffer: (lines) => r2.readBuffer(lines),
+        sendInput: (data) => r2.sendInput(data)
+      }) ?? null;
+      focus.attach({ focus: () => r2.focus(), prepareFocusTransfer: () => r2.prepareFocusTransfer() });
+      registry2.set(viewId, r2);
+      setStatus(null);
+    }).catch(fail);
+  }
+  return {
+    get splitHost() {
+      return state.splitHost;
+    },
+    dispose() {
+      state.disposed = true;
+      focus.detach();
+      state.io?.dispose();
+      void state.single?.dispose();
+      void state.splitHost?.dispose();
+      registry2.delete(viewId);
+    }
+  };
+}
+
 // src/renderer.ts
 var FLOW_ACK_SIZE = 5e3;
 var initP = null;
@@ -3823,83 +3924,33 @@ function mountTerminal(container, ctx, vctx) {
     };
   }
   vctx.setStatus({ code: "connecting" });
-  const m2 = {
-    focus: createFocusCoordinator(),
-    renderer: null,
-    splitHost: null,
-    io: null,
-    disposed: false
-  };
-  mounts.set(viewId, m2);
   const cwd = vctx.restore?.cwd ?? vctx.root ?? void 0;
   const onTitle = (t3) => vctx.setTitle(t3);
-  const fail = (e3) => {
-    if (!m2.disposed) vctx.setStatus({ code: "error", message: `\uC5D4\uC9C4 \uCD08\uAE30\uD654 \uC2E4\uD328: ${e3}` });
-  };
   const withinTab = String(app.settings.get("splitMode") ?? "tab") === "within-tab";
-  if (withinTab) {
-    let seq = 0;
-    let first = true;
-    void createPaneSplitHost({
-      container,
-      mintPaneId: () => `${viewId}~${seq++}`,
-      createRenderer: async (paneId) => {
-        const r2 = await createGhosttyRenderer({
-          app,
-          viewId: paneId,
-          cwd,
-          initialCommand: first ? vctx.command ?? void 0 : void 0,
-          onTitle
-        });
-        first = false;
-        return r2;
-      },
-      onEmpty: () => vctx.setStatus({ code: "error", message: "\uBE48 \uBDF0 \u2014 \uB9C8\uC9C0\uB9C9 pane \uC774 \uB2EB\uD614\uC2B5\uB2C8\uB2E4" })
-    }).then((h) => {
-      if (m2.disposed) {
-        void h.dispose();
-        return;
-      }
-      m2.splitHost = h;
-      m2.io = app.pty?.registerIo?.(viewId, {
-        readBuffer: (lines) => h.active()?.renderer.readBuffer(lines) ?? "",
-        sendInput: (data) => h.active()?.renderer.sendInput(data)
-      }) ?? null;
-      m2.focus.attach({
-        focus: () => h.active()?.renderer.focus(),
-        prepareFocusTransfer: () => h.active()?.renderer.prepareFocusTransfer()
-      });
-      registry.set(viewId, createActivePaneProxy(h));
-      vctx.setStatus(null);
-    }).catch(fail);
-    return () => cleanup(m2, viewId, container);
-  }
-  void createGhosttyRenderer({ app, viewId, cwd, initialCommand: vctx.command ?? void 0, onTitle }).then((r2) => {
-    if (m2.disposed) {
-      void r2.dispose();
-      return;
-    }
-    m2.renderer = r2;
-    registry.set(viewId, r2);
-    container.appendChild(r2.element);
-    m2.io = app.pty?.registerIo?.(viewId, {
-      readBuffer: (lines) => r2.readBuffer(lines),
-      sendInput: (data) => r2.sendInput(data)
-    }) ?? null;
-    m2.focus.attach({ focus: () => r2.focus(), prepareFocusTransfer: () => r2.prepareFocusTransfer() });
-    vctx.setStatus(null);
-  }).catch(fail);
-  return () => cleanup(m2, viewId, container);
-}
-function cleanup(m2, viewId, container) {
-  m2.disposed = true;
-  m2.focus.detach();
-  m2.io?.dispose();
-  void m2.renderer?.dispose();
-  void m2.splitHost?.dispose();
-  registry.delete(viewId);
-  mounts.delete(viewId);
-  container.replaceChildren();
+  const focus = createFocusCoordinator();
+  const handle = mountTerminalView(app, {
+    mountRoot: container,
+    viewId,
+    withinTab,
+    focus,
+    registry,
+    // pane 마다 ghostty 렌더러(term+PTY+복원+IME). 첫 pane 만 initialCommand(에이전트 자동 실행).
+    createRenderer: (paneId, isFirst) => createGhosttyRenderer({
+      app,
+      viewId: paneId,
+      cwd,
+      initialCommand: isFirst ? vctx.command ?? void 0 : void 0,
+      onTitle
+    }),
+    setStatus: (s) => vctx.setStatus(s),
+    emptyMessage: "\uBE48 \uBDF0 \u2014 \uB9C8\uC9C0\uB9C9 pane \uC774 \uB2EB\uD614\uC2B5\uB2C8\uB2E4"
+  });
+  mounts.set(viewId, { focus, handle });
+  return () => {
+    handle.dispose();
+    mounts.delete(viewId);
+    container.replaceChildren();
+  };
 }
 var plugin_entry_default = {
   activate(ctx) {
@@ -3934,34 +3985,15 @@ var plugin_entry_default = {
           handler: () => ({ ok: true, plugin: "soksak-plugin-terminal-ghostty", engine: "ghostty" })
         })
       );
-      ctx.subscriptions.push(
-        app.commands.register("split-pane", {
-          description: "Split the terminal view into an internal pane (within-tab split; requires splitMode=within-tab).",
-          triggers: { ko: "\uD130\uBBF8\uB110 \uD0ED\uB0B4 \uBD84\uD560 \uB098\uB204\uAE30" },
-          params: {
-            view: { type: "string", description: "Target view id (omit = first within-tab view)" },
-            dir: { type: "string", description: "'right' (default) or 'down'" }
-          },
-          returns: "{ ok, viewId?, paneId? }",
-          message: (d2) => d2.ok ? `pane ${d2.paneId} \uC744 \uBD84\uD560\uD588\uC2B5\uB2C8\uB2E4.` : "\uBD84\uD560 \uB300\uC0C1 \uC5C6\uC74C",
-          handler: async (p) => {
-            const viewId = typeof p.view === "string" && p.view ? p.view : [...mounts].find(([, mm2]) => mm2.splitHost)?.[0];
-            const mm = viewId ? mounts.get(viewId) : void 0;
-            if (!mm?.splitHost) {
-              return { ok: false, code: "NO_TARGET", message: "no within-tab split host (set splitMode=within-tab)" };
-            }
-            const paneId = await mm.splitHost.split(p.dir === "down" ? "col" : "row");
-            return { ok: true, viewId, paneId };
-          }
-        })
-      );
+      registerSplitPaneCommand(ctx, (view) => {
+        const viewId = view ?? [...mounts].find(([, m3]) => m3.handle.splitHost)?.[0];
+        const m2 = viewId ? mounts.get(viewId) : void 0;
+        return m2?.handle.splitHost ? { viewId, host: m2.handle.splitHost } : null;
+      });
     }
   },
   deactivate() {
-    for (const m2 of mounts.values()) {
-      void m2.renderer?.dispose();
-      void m2.splitHost?.dispose();
-    }
+    for (const m2 of mounts.values()) m2.handle.dispose();
     mounts.clear();
   }
 };

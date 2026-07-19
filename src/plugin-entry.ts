@@ -5,8 +5,14 @@ import { init, Terminal, FitAddon } from "ghostty-web";
 import { attachGhosttyPreedit } from "./ime-preedit";
 import { attachFocusCursor } from "./cursor-focus";
 import { openWithoutImplicitFocus } from "./focus-contract";
-import { ensureSidecar, orchestrateRestore, ensureSession } from "./restore";
-import type { PluginContext, PluginViewContext, Disposable } from "./host";
+import {
+  ensureSidecar,
+  orchestrateRestore,
+  ensureSession,
+  type PluginContext,
+  type PluginViewContext,
+  type Disposable,
+} from "soksak-kit-terminal-common";
 
 // 플로우 컨트롤 — 5000B 처리 후 ACK(코어 pty.rs 가 짝).
 const FLOW_ACK_SIZE = 5000;

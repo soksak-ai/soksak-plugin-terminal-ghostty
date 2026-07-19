@@ -3164,7 +3164,12 @@ function openWithoutImplicitFocus(terminal, container) {
   }
 }
 
-// src/i18n.ts
+// ../../kits/soksak-kit-terminal-common/src/i18n.ts
+function makeTranslator(en, ko) {
+  return (key, lang) => (lang === "ko" ? ko : en)[key] ?? en[key] ?? key;
+}
+
+// ../../kits/soksak-kit-terminal-common/src/restore.ts
 var EN = {
   "cold-restore-notice": "[Restored from a sealed checkpoint \u2014 the running process ended and was not restored; only the screen record was repainted]",
   "restore.degraded": "Could not reach the terminal restore sidecar \u2014 restore is degraded (falling back to the sealed record).",
@@ -3181,12 +3186,7 @@ var KO = {
   "sidecar.spawn-failed": "\uD130\uBBF8\uB110 \uBCF5\uC6D0 \uC0AC\uC774\uB4DC\uCE74 \uC2A4\uD3F0\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.",
   "sidecar.subscribe-timeout": "\uBCF5\uC6D0 \uC0AC\uC774\uB4DC\uCE74\uAC00 \uC774 \uC138\uC158\uC744 \uC81C\uB54C \uAD6C\uB3C5\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4 \u2014 \uC774 \uC138\uC158\uC758 \uBCF5\uC6D0 \uCDA9\uC2E4\uB3C4\uAC00 \uC81C\uD55C\uB429\uB2C8\uB2E4."
 };
-function t(key, lang) {
-  const dict = lang === "ko" ? KO : EN;
-  return dict[key] ?? EN[key] ?? key;
-}
-
-// src/restore.ts
+var t = makeTranslator(EN, KO);
 var TERMINAL_CONTRACT = "soksak-spec-sidecar-terminal";
 function b64ToBytes(b64) {
   const bin = atob(b64);

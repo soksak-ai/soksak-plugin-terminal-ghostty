@@ -1434,46 +1434,46 @@ var $ = class {
     const s = I.x !== this.lastCursorPosition.x || I.y !== this.lastCursorPosition.y;
     if (s || this.cursorBlink) {
       if (!B && !A.isRowDirty(I.y)) {
-        const t2 = A.getLine(I.y);
-        t2 && this.renderLine(t2, I.y, D.cols);
+        const t3 = A.getLine(I.y);
+        t3 && this.renderLine(t3, I.y, D.cols);
       }
       if (s && this.lastCursorPosition.y !== I.y && !B && !A.isRowDirty(this.lastCursorPosition.y)) {
-        const t2 = A.getLine(this.lastCursorPosition.y);
-        t2 && this.renderLine(t2, this.lastCursorPosition.y, D.cols);
+        const t3 = A.getLine(this.lastCursorPosition.y);
+        t3 && this.renderLine(t3, this.lastCursorPosition.y, D.cols);
       }
     }
     const N = this.selectionManager && this.selectionManager.hasSelection(), k = /* @__PURE__ */ new Set();
     if (this.currentSelectionCoords = N ? this.selectionManager.getSelectionCoords() : null, this.currentSelectionCoords) {
-      const t2 = this.currentSelectionCoords;
-      for (let c = t2.startRow; c <= t2.endRow; c++)
+      const t3 = this.currentSelectionCoords;
+      for (let c = t3.startRow; c <= t3.endRow; c++)
         k.add(c);
     }
     if (this.selectionManager) {
-      const t2 = this.selectionManager.getDirtySelectionRows();
-      if (t2.size > 0) {
-        for (const c of t2)
+      const t3 = this.selectionManager.getDirtySelectionRows();
+      if (t3.size > 0) {
+        for (const c of t3)
           k.add(c);
         this.selectionManager.clearDirtySelectionRows();
       }
     }
     const M = /* @__PURE__ */ new Set(), a = this.hoveredHyperlinkId !== this.previousHoveredHyperlinkId, h = JSON.stringify(this.hoveredLinkRange) !== JSON.stringify(this.previousHoveredLinkRange);
     if (a) {
-      for (let t2 = 0; t2 < D.rows; t2++) {
+      for (let t3 = 0; t3 < D.rows; t3++) {
         let c = null;
         if (g > 0)
-          if (t2 < g && E) {
-            const F = i - Math.floor(g) + t2;
+          if (t3 < g && E) {
+            const F = i - Math.floor(g) + t3;
             c = E.getScrollbackLine(F);
           } else {
-            const F = t2 - Math.floor(g);
+            const F = t3 - Math.floor(g);
             c = A.getLine(F);
           }
         else
-          c = A.getLine(t2);
+          c = A.getLine(t3);
         if (c) {
           for (const F of c)
             if (F.hyperlink_id === this.hoveredHyperlinkId || F.hyperlink_id === this.previousHoveredHyperlinkId) {
-              M.add(t2);
+              M.add(t3);
               break;
             }
         }
@@ -1482,31 +1482,31 @@ var $ = class {
     }
     if (h) {
       if (this.previousHoveredLinkRange)
-        for (let t2 = this.previousHoveredLinkRange.startY; t2 <= this.previousHoveredLinkRange.endY; t2++)
-          M.add(t2);
+        for (let t3 = this.previousHoveredLinkRange.startY; t3 <= this.previousHoveredLinkRange.endY; t3++)
+          M.add(t3);
       if (this.hoveredLinkRange)
-        for (let t2 = this.hoveredLinkRange.startY; t2 <= this.hoveredLinkRange.endY; t2++)
-          M.add(t2);
+        for (let t3 = this.hoveredLinkRange.startY; t3 <= this.hoveredLinkRange.endY; t3++)
+          M.add(t3);
       this.previousHoveredLinkRange = this.hoveredLinkRange;
     }
     const G = /* @__PURE__ */ new Set();
-    for (let t2 = 0; t2 < D.rows; t2++)
-      (g > 0 ? true : B || A.isRowDirty(t2) || k.has(t2) || M.has(t2)) && (G.add(t2), t2 > 0 && G.add(t2 - 1), t2 < D.rows - 1 && G.add(t2 + 1));
-    for (let t2 = 0; t2 < D.rows; t2++) {
-      if (!G.has(t2))
+    for (let t3 = 0; t3 < D.rows; t3++)
+      (g > 0 ? true : B || A.isRowDirty(t3) || k.has(t3) || M.has(t3)) && (G.add(t3), t3 > 0 && G.add(t3 - 1), t3 < D.rows - 1 && G.add(t3 + 1));
+    for (let t3 = 0; t3 < D.rows; t3++) {
+      if (!G.has(t3))
         continue;
       let c = null;
       if (g > 0)
-        if (t2 < g && E) {
-          const F = i - Math.floor(g) + t2;
+        if (t3 < g && E) {
+          const F = i - Math.floor(g) + t3;
           c = E.getScrollbackLine(F);
         } else {
-          const F = g > 0 ? t2 - Math.floor(g) : t2;
+          const F = g > 0 ? t3 - Math.floor(g) : t3;
           c = A.getLine(F);
         }
       else
-        c = A.getLine(t2);
-      c && this.renderLine(c, t2, D.cols);
+        c = A.getLine(t3);
+      c && this.renderLine(c, t3, D.cols);
     }
     g === 0 && I.visible && this.cursorVisible && this.renderCursor(I.x, I.y), E && C > 0 && this.renderScrollbar(g, i, D.rows, C), this.lastCursorPosition = { x: I.x, y: I.y }, A.clearDirty();
   }
@@ -2215,8 +2215,8 @@ var IA = class {
       const C = this.canvas.getBoundingClientRect(), I = g.clientX - C.left, D = g.clientY - C.top, i = C.width, w = C.height, s = 8, N = i - s - 4, k = 4;
       if (I >= N && I <= N + s) {
         g.preventDefault(), g.stopPropagation(), g.stopImmediatePropagation();
-        const M = w - k * 2, a = this.rows, h = E + a, G = Math.max(20, a / h * M), U = this.viewportY / E, t2 = k + (M - G) * (1 - U);
-        if (D >= t2 && D <= t2 + G)
+        const M = w - k * 2, a = this.rows, h = E + a, G = Math.max(20, a / h * M), U = this.viewportY / E, t3 = k + (M - G) * (1 - U);
+        if (D >= t3 && D <= t3 + G)
           this.isDraggingScrollbar = true, this.scrollbarDragStart = D, this.scrollbarDragStartViewportY = this.viewportY, this.canvas && (this.canvas.style.userSelect = "none", this.canvas.style.webkitUserSelect = "none");
         else {
           const F = 1 - (D - k) / M, S = Math.round(F * E);
@@ -2743,8 +2743,8 @@ var IA = class {
     else
       k = N + C;
     this.linkDetector.getLinkAt(g, k).then((h) => {
-      var G, U, t2, c;
-      if (h !== this.currentHoveredLink && ((U = (G = this.currentHoveredLink) == null ? void 0 : G.hover) == null || U.call(G, false), this.currentHoveredLink = h, (t2 = h == null ? void 0 : h.hover) == null || t2.call(h, true), this.element && (this.element.style.cursor = h ? "pointer" : "text"), this.renderer))
+      var G, U, t3, c;
+      if (h !== this.currentHoveredLink && ((U = (G = this.currentHoveredLink) == null ? void 0 : G.hover) == null || U.call(G, false), this.currentHoveredLink = h, (t3 = h == null ? void 0 : h.hover) == null || t3.call(h, true), this.element && (this.element.style.cursor = h ? "pointer" : "text"), this.renderer))
         if (h) {
           const F = ((c = this.wasmTerm) == null ? void 0 : c.getScrollbackLength()) || 0, S = this.getViewportY(), x = Math.max(0, Math.floor(S)), p = h.range.start.y - F + x, T = h.range.end.y - F + x;
           p < this.rows && T >= 0 ? this.renderer.setHoveredLinkRange({
@@ -3296,8 +3296,8 @@ function createFocusCoordinator() {
       pending = req;
       apply();
     },
-    attach(t2) {
-      target = t2;
+    attach(t3) {
+      target = t3;
       apply();
     },
     prepareTransfer() {
@@ -3310,177 +3310,207 @@ function createFocusCoordinator() {
   };
 }
 
-// src/plugin-entry.ts
+// ../../kits/soksak-kit-terminal-common/src/activity.ts
+var EN2 = {
+  "activity.exit": "exit",
+  "activity.done.ok": "A terminal command finished.",
+  "activity.done.fail": "A command failed with code"
+};
+var KO2 = {
+  "activity.exit": "\uC885\uB8CC",
+  "activity.done.ok": "\uD130\uBBF8\uB110 \uBA85\uB839\uC774 \uB05D\uB0AC\uC5B4\uC694.",
+  "activity.done.fail": "\uBA85\uB839\uC774 \uC2E4\uD328\uD588\uC5B4\uC694. \uCF54\uB4DC"
+};
+var t2 = makeTranslator(EN2, KO2);
+
+// src/renderer.ts
 var FLOW_ACK_SIZE = 5e3;
-var instances = /* @__PURE__ */ new Map();
 var initP = null;
 var ensureInit = () => initP ??= oA();
-function mountTerminal(container, ctx, vctx) {
-  const app = ctx.app;
-  const viewId = vctx.viewId;
-  let disposed = false;
+async function createGhosttyRenderer(opts) {
+  const { app, viewId, cwd, initialCommand, onTitle } = opts;
+  const pty = app.pty;
   const subs = [];
   const cell = document.createElement("div");
   cell.setAttribute("data-node", "terminal");
   cell.style.cssText = "position:absolute;inset:0;overflow:hidden";
-  container.style.position = "relative";
-  container.appendChild(cell);
-  if (!app.pty) {
-    vctx.setStatus({ code: "error", message: "pty \uAD8C\uD55C/\uD45C\uBA74 \uC5C6\uC74C" });
-    return () => cell.remove();
+  await ensureInit();
+  const themeNow = () => {
+    const css = getComputedStyle(document.documentElement);
+    const tok = (name) => css.getPropertyValue(name).trim();
+    return {
+      background: tok("--bg") || "#111",
+      foreground: tok("--fg") || "#eee",
+      cursor: tok("--acc") || "#3b82f6",
+      selectionBackground: tok("--accbg") || "#3b82f655"
+    };
+  };
+  const term = new IA({
+    fontFamily: String(app.settings.get("appFontFamily") ?? "Menlo, monospace"),
+    fontSize: Number(app.settings.get("appFontSize") ?? 13),
+    theme: themeNow(),
+    scrollback: 5e3
+  });
+  const fit = new DA();
+  term.loadAddon(fit);
+  openWithoutImplicitFocus(term, cell);
+  {
+    const r2 = term.renderer;
+    if (r2?.measureFont && r2.remeasureFont) {
+      const fontPx = Number(term.options.fontSize ?? 13);
+      const family = String(term.options.fontFamily ?? "monospace");
+      r2.measureFont = () => {
+        const c = document.createElement("canvas").getContext("2d");
+        c.font = `${fontPx}px ${family}`;
+        const m2 = c.measureText("M");
+        const ascent = m2.fontBoundingBoxAscent || m2.actualBoundingBoxAscent || fontPx * 0.8;
+        const descent = m2.fontBoundingBoxDescent || m2.actualBoundingBoxDescent || fontPx * 0.2;
+        return {
+          width: Math.ceil(m2.width),
+          height: Math.ceil(ascent + descent),
+          baseline: Math.ceil(ascent)
+        };
+      };
+      r2.remeasureFont();
+    }
   }
-  if (!viewId) {
-    vctx.setStatus({ code: "error", message: "\uCF58\uD150\uCE20 \uBC30\uCE58 \uC804\uC6A9 \uBDF0" });
-    return () => cell.remove();
+  fit.fit();
+  const mo = new MutationObserver(() => {
+    term.renderer?.setTheme(themeNow());
+  });
+  mo.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme", "data-theme-mode", "style", "class"]
+  });
+  subs.push({ dispose: () => mo.disconnect() });
+  const outcome = await orchestrateRestore(app, viewId, (d2) => term.write(d2));
+  const ptyId = await pty.spawn({
+    cols: term.cols,
+    rows: term.rows,
+    cwd: cwd ?? void 0,
+    paneId: viewId,
+    replay: outcome.replay
+  });
+  if (outcome.painted) {
+    requestAnimationFrame(() => {
+      try {
+        term.renderer?.remeasureFont?.();
+      } catch {
+      }
+    });
   }
-  vctx.setStatus({ code: "connecting" });
-  const inst = {
-    ptyId: null,
-    focus: createFocusCoordinator(),
-    dispose: () => {
+  void ensureSession(app, viewId, term.cols, term.rows);
+  let pendingAck = 0;
+  subs.push(
+    pty.onData(ptyId, (bytes) => {
+      term.write(bytes);
+      pendingAck += bytes.byteLength;
+      if (pendingAck >= FLOW_ACK_SIZE) {
+        const n2 = pendingAck;
+        pendingAck = 0;
+        void pty.ack(ptyId, n2);
+      }
+    })
+  );
+  subs.push(term.onData((data) => void pty.write(ptyId, data)));
+  const preedit = attachGhosttyPreedit(term, cell);
+  subs.push({ dispose: () => preedit.dispose() });
+  const focusCursor = attachFocusCursor(term, cell);
+  subs.push({ dispose: () => focusCursor.dispose() });
+  const ro = new ResizeObserver(() => {
+    fit.fit();
+  });
+  ro.observe(cell);
+  subs.push({ dispose: () => ro.disconnect() });
+  subs.push(
+    term.onResize(({ cols, rows }) => {
+      void pty.resize(ptyId, cols, rows);
+    })
+  );
+  subs.push(term.onTitleChange((t3) => t3 && onTitle(t3)));
+  if (initialCommand) void pty.write(ptyId, `${initialCommand}\r`);
+  const readBuffer = (lines) => {
+    const buf = term.buffer.active;
+    const all = [];
+    for (let y2 = 0; y2 < buf.length; y2++) {
+      all.push(buf.getLine(y2)?.translateToString(true) ?? "");
+    }
+    let end = all.length;
+    while (end > 0 && all[end - 1] === "") end--;
+    const used = all.slice(0, end);
+    return (lines ? used.slice(-lines) : used).join("\n");
+  };
+  let disposed = false;
+  return {
+    element: cell,
+    restorePainted: outcome.painted,
+    focus: () => term.focus(),
+    prepareFocusTransfer: () => preedit.prepareFocusTransfer(),
+    fit: () => fit.fit(),
+    sendInput: (data) => void pty.write(ptyId, data),
+    readBuffer,
+    write: (data) => term.write(data),
+    clear: () => term.clear(),
+    paste: (text) => term.paste(text),
+    async dispose() {
       if (disposed) return;
       disposed = true;
       for (const s of subs.splice(0)) s.dispose();
-      if (inst.ptyId != null) void app.pty?.close(inst.ptyId);
-      instances.delete(viewId);
-      inst.focus.detach();
+      void pty.close(ptyId);
       cell.remove();
     }
   };
-  instances.set(viewId, inst);
-  void (async () => {
-    try {
-      await ensureInit();
-    } catch (e3) {
-      if (!disposed) vctx.setStatus({ code: "error", message: `\uC5D4\uC9C4 \uCD08\uAE30\uD654 \uC2E4\uD328: ${e3}` });
-      return;
-    }
-    if (disposed) return;
-    const themeNow = () => {
-      const css = getComputedStyle(document.documentElement);
-      const tok = (name) => css.getPropertyValue(name).trim();
-      return {
-        background: tok("--bg") || "#111",
-        foreground: tok("--fg") || "#eee",
-        cursor: tok("--acc") || "#3b82f6",
-        selectionBackground: tok("--accbg") || "#3b82f655"
-      };
+}
+
+// src/plugin-entry.ts
+var mounts = /* @__PURE__ */ new Map();
+function mountTerminal(container, ctx, vctx) {
+  const app = ctx.app;
+  const viewId = vctx.viewId;
+  container.style.position = "relative";
+  if (!app.pty) {
+    vctx.setStatus({ code: "error", message: "pty \uAD8C\uD55C/\uD45C\uBA74 \uC5C6\uC74C" });
+    return () => {
     };
-    const term = new IA({
-      fontFamily: String(app.settings.get("appFontFamily") ?? "Menlo, monospace"),
-      fontSize: Number(app.settings.get("appFontSize") ?? 13),
-      theme: themeNow(),
-      scrollback: 5e3
-    });
-    const fit = new DA();
-    term.loadAddon(fit);
-    openWithoutImplicitFocus(term, cell);
-    inst.term = term;
-    {
-      const r2 = term.renderer;
-      if (r2?.measureFont && r2.remeasureFont) {
-        const fontPx = Number(term.options.fontSize ?? 13);
-        const family = String(term.options.fontFamily ?? "monospace");
-        r2.measureFont = () => {
-          const c = document.createElement("canvas").getContext("2d");
-          c.font = `${fontPx}px ${family}`;
-          const m2 = c.measureText("M");
-          const ascent = m2.fontBoundingBoxAscent || m2.actualBoundingBoxAscent || fontPx * 0.8;
-          const descent = m2.fontBoundingBoxDescent || m2.actualBoundingBoxDescent || fontPx * 0.2;
-          return {
-            width: Math.ceil(m2.width),
-            height: Math.ceil(ascent + descent),
-            baseline: Math.ceil(ascent)
-          };
-        };
-        r2.remeasureFont();
-      }
-    }
-    fit.fit();
-    const mo = new MutationObserver(() => {
-      term.renderer?.setTheme(themeNow());
-    });
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-theme-mode", "style", "class"] });
-    subs.push({ dispose: () => mo.disconnect() });
-    const outcome = await orchestrateRestore(app, viewId, (d2) => term.write(d2));
-    if (disposed) return;
-    const pty = app.pty;
-    const restoredCwd = vctx.restore?.cwd ?? void 0;
-    const ptyId = await pty.spawn({
-      cols: term.cols,
-      rows: term.rows,
-      cwd: restoredCwd ?? vctx.root ?? void 0,
-      paneId: viewId,
-      replay: outcome.replay
-    });
-    if (disposed) {
-      void pty.close(ptyId);
+  }
+  if (!viewId) {
+    vctx.setStatus({ code: "error", message: "\uCF58\uD150\uCE20 \uBC30\uCE58 \uC804\uC6A9 \uBDF0" });
+    return () => {
+    };
+  }
+  vctx.setStatus({ code: "connecting" });
+  const m2 = { focus: createFocusCoordinator(), renderer: null, io: null, disposed: false };
+  mounts.set(viewId, m2);
+  void createGhosttyRenderer({
+    app,
+    viewId,
+    cwd: vctx.restore?.cwd ?? vctx.root ?? void 0,
+    initialCommand: vctx.command ?? void 0,
+    onTitle: (t3) => vctx.setTitle(t3)
+  }).then((r2) => {
+    if (m2.disposed) {
+      void r2.dispose();
       return;
     }
-    inst.ptyId = ptyId;
-    if (outcome.painted) {
-      requestAnimationFrame(() => {
-        if (disposed) return;
-        try {
-          term.renderer?.remeasureFont?.();
-        } catch {
-        }
-      });
-    }
-    void ensureSession(app, viewId, term.cols, term.rows);
-    let pendingAck = 0;
-    subs.push(
-      pty.onData(ptyId, (bytes) => {
-        term.write(bytes);
-        pendingAck += bytes.byteLength;
-        if (pendingAck >= FLOW_ACK_SIZE) {
-          const n2 = pendingAck;
-          pendingAck = 0;
-          void pty.ack(ptyId, n2);
-        }
-      })
-    );
-    subs.push(term.onData((data) => void pty.write(ptyId, data)));
-    const preedit = attachGhosttyPreedit(term, cell);
-    inst.preedit = preedit;
-    subs.push({ dispose: () => preedit.dispose() });
-    const focusCursor = attachFocusCursor(term, cell);
-    subs.push({ dispose: () => focusCursor.dispose() });
-    const ro = new ResizeObserver(() => {
-      fit.fit();
-    });
-    ro.observe(cell);
-    subs.push({ dispose: () => ro.disconnect() });
-    subs.push(
-      term.onResize(({ cols, rows }) => {
-        void pty.resize(ptyId, cols, rows);
-      })
-    );
-    subs.push(term.onTitleChange((t2) => t2 && vctx.setTitle(t2)));
-    subs.push(
-      pty.registerIo(viewId, {
-        readBuffer: (lines) => {
-          const buf = term.buffer.active;
-          const all = [];
-          for (let y2 = 0; y2 < buf.length; y2++) {
-            all.push(buf.getLine(y2)?.translateToString(true) ?? "");
-          }
-          let end = all.length;
-          while (end > 0 && all[end - 1] === "") end--;
-          const used = all.slice(0, end);
-          return (lines ? used.slice(-lines) : used).join("\n");
-        },
-        sendInput: (data) => void pty.write(ptyId, data)
-      })
-    );
-    if (vctx.command) void pty.write(ptyId, `${vctx.command}\r`);
-    inst.focus.attach({
-      focus: () => term.focus(),
-      prepareFocusTransfer: () => inst.preedit?.prepareFocusTransfer()
-    });
+    m2.renderer = r2;
+    container.appendChild(r2.element);
+    m2.io = app.pty?.registerIo?.(viewId, {
+      readBuffer: (lines) => r2.readBuffer(lines),
+      sendInput: (data) => r2.sendInput(data)
+    }) ?? null;
+    m2.focus.attach({ focus: () => r2.focus(), prepareFocusTransfer: () => r2.prepareFocusTransfer() });
     vctx.setStatus(null);
-  })();
-  return inst.dispose;
+  }).catch((e3) => {
+    if (!m2.disposed) vctx.setStatus({ code: "error", message: `\uC5D4\uC9C4 \uCD08\uAE30\uD654 \uC2E4\uD328: ${e3}` });
+  });
+  return () => {
+    m2.disposed = true;
+    m2.focus.detach();
+    m2.io?.dispose();
+    void m2.renderer?.dispose();
+    mounts.delete(viewId);
+    container.replaceChildren();
+  };
 }
 var plugin_entry_default = {
   activate(ctx) {
@@ -3498,10 +3528,10 @@ var plugin_entry_default = {
             cleanups.delete(container);
           },
           prepareFocusTransfer(_container, vctx) {
-            if (vctx.viewId) instances.get(vctx.viewId)?.focus.prepareTransfer();
+            if (vctx.viewId) mounts.get(vctx.viewId)?.focus.prepareTransfer();
           },
           focus(_container, vctx, request) {
-            if (vctx.viewId) instances.get(vctx.viewId)?.focus.request(request);
+            if (vctx.viewId) mounts.get(vctx.viewId)?.focus.request(request);
           }
         })
       );
@@ -3517,8 +3547,8 @@ var plugin_entry_default = {
     }
   },
   deactivate() {
-    for (const inst of instances.values()) inst.dispose();
-    instances.clear();
+    for (const m2 of mounts.values()) void m2.renderer?.dispose();
+    mounts.clear();
   }
 };
 export {

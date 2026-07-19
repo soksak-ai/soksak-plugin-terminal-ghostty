@@ -3348,14 +3348,14 @@ function createTerminalRegistry() {
 
 // ../../kits/soksak-kit-terminal-common/src/commands.ts
 var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var VIEW_PARAM = {
+  view: { type: "string", description: "Target view id (omit = first active terminal)" }
+};
 function registerTerminalCommands(ctx, registry2) {
   const app = ctx.app;
   if (!app.commands) return;
   const sub = (d2) => ctx.subscriptions.push(d2);
   const readHint = (d2, why) => d2.ok && typeof d2.viewId === "string" ? [{ cmd: `sok term.read '{"pane":"${d2.viewId}"}'`, why }] : [];
-  const VIEW_PARAM = {
-    view: { type: "string", description: "Target view id (omit = first active terminal)" }
-  };
   sub(
     app.commands.register("send", {
       description: "Send text to a terminal PTY (target view, else the first active terminal).",
@@ -3441,6 +3441,24 @@ function registerPaneCommands(ctx, resolveHost) {
     })
   );
   ctx.subscriptions.push(
+    app.commands.register("panes", {
+      // within-tab 뷰의 상태 노출 — 어떤 내부 pane 들이 있고 어느 게 활성인지(status 투명화). 각 pane 은
+      // ui.tree 로 개별 주소화되고 term.read/send {pane} 으로 겨냥된다 — 이 명령이 그 로스터를 준다.
+      description: "List the internal panes of a within-tab terminal view and which one is active.",
+      triggers: { ko: "\uD130\uBBF8\uB110 \uD0ED\uB0B4 pane \uBAA9\uB85D \uC0C1\uD0DC" },
+      params: { ...VIEW_PARAM },
+      returns: "{ ok, viewId?, active?, panes?: [{ paneId, active }] }",
+      message: (d2) => d2.panes ? `pane ${d2.panes.length}\uAC1C (\uD65C\uC131 ${d2.active ?? "-"})` : "within-tab pane \uC5C6\uC74C",
+      handler: (p) => {
+        const target = resolveHost(typeof p.view === "string" && p.view ? p.view : void 0);
+        if (!target) return noHost;
+        const active = target.host.active()?.paneId ?? null;
+        const panes = target.host.entries().map(([paneId]) => ({ paneId, active: paneId === active }));
+        return { ok: true, viewId: target.viewId, active, panes };
+      }
+    })
+  );
+  ctx.subscriptions.push(
     app.commands.register("close-pane", {
       description: "Close an internal within-tab pane by its paneId.",
       triggers: { ko: "\uD130\uBBF8\uB110 \uD0ED\uB0B4 pane \uB2EB\uAE30" },
@@ -3510,6 +3528,22 @@ function resizeSplit(node, splitId, sizes) {
 var DIVIDER_PX = 1;
 var DRAG_PAD = 4;
 var MIN_FRAC = 0.05;
+function paneNodeSegment(paneId) {
+  return paneId.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "");
+}
+function scopePaneNodes(root, paneId) {
+  const seg = paneNodeSegment(paneId);
+  const els = [];
+  if (root.dataset.node) els.push(root);
+  els.push(...root.querySelectorAll("[data-node]"));
+  for (const el of els) {
+    const path = el.dataset.node;
+    if (!path) continue;
+    const segs = path.split("/");
+    if (segs[1] === seg) continue;
+    el.dataset.node = [segs[0], seg, ...segs.slice(1)].join("/");
+  }
+}
 async function createPaneSplitHost(opts) {
   const { container, createRenderer, mintPaneId, onEmpty, restore, onChange } = opts;
   const hosts = /* @__PURE__ */ new Map();
@@ -3520,6 +3554,7 @@ async function createPaneSplitHost(opts) {
     const h = document.createElement("div");
     h.style.cssText = "position:relative;overflow:hidden;min-width:0;min-height:0;width:100%;height:100%";
     h.appendChild(r2.element);
+    scopePaneNodes(r2.element, paneId);
     const overlay = document.createElement("div");
     overlay.dataset.paneOverlay = "1";
     overlay.style.cssText = "position:absolute;inset:0;pointer-events:none;box-sizing:border-box;z-index:3;border:2px solid transparent;transition:border-color 0.1s";

@@ -2,13 +2,13 @@
   "spec": "soksak-spec-plugin@0.0.1",
   "id": "soksak-plugin-terminal-ghostty",
   "name": {
-    "ko": "\ud130\ubbf8\ub110(\uace0\uc2a4\ud2f0)",
+    "ko": "터미널(고스티)",
     "en": "Terminal (Ghostty)"
   },
   "version": "0.0.1",
   "description": {
-    "ko": "Ghostty VT \uc5d4\uc9c4 \uae30\ubc18 \ud130\ubbf8\ub110 \u2014 \uae30\uc874 \ud130\ubbf8\ub110\uacfc \ub098\ub780\ud788 \ucd94\uac00\ub418\ub294 \ub450 \ubc88\uc9f8 \ud130\ubbf8\ub110 \ud504\ub85c\uadf8\ub7a8.",
-    "en": "Terminal powered by the Ghostty VT engine \u2014 a second terminal program alongside the existing one."
+    "ko": "Ghostty VT 엔진 기반 터미널 — 기존 터미널과 나란히 추가되는 두 번째 터미널 프로그램.",
+    "en": "Terminal powered by the Ghostty VT engine — a second terminal program alongside the existing one."
   },
   "entry": "main.js",
   "sidecars": [
@@ -41,7 +41,7 @@
       {
         "id": "terminal-ghostty",
         "title": {
-          "ko": "\ud130\ubbf8\ub110(\uace0\uc2a4\ud2f0)",
+          "ko": "터미널(고스티)",
           "en": "Terminal (Ghostty)"
         },
         "kind": "view",
@@ -52,10 +52,10 @@
       {
         "id": "content",
         "title": {
-          "ko": "\ud130\ubbf8\ub110(\uace0\uc2a4\ud2f0)",
+          "ko": "터미널(고스티)",
           "en": "Terminal (Ghostty)"
         },
-        "icon": "\ud83e\udf00",
+        "icon": "🬀",
         "placements": [
           "content"
         ],
@@ -70,42 +70,49 @@
       {
         "name": "ping",
         "title": {
-          "ko": "\ud551",
+          "ko": "핑",
           "en": "Ping"
         }
       },
       {
         "name": "send",
         "title": {
-          "ko": "\ud14d\uc2a4\ud2b8 \uc804\uc1a1",
+          "ko": "텍스트 전송",
           "en": "Send Text"
         }
       },
       {
         "name": "clear",
         "title": {
-          "ko": "\uc9c0\uc6b0\uae30",
+          "ko": "지우기",
           "en": "Clear"
         }
       },
       {
         "name": "resume",
         "title": {
-          "ko": "\uc138\uc158 \uc774\uc5b4\uac00\uae30",
+          "ko": "세션 이어가기",
           "en": "Resume Session"
         }
       },
       {
         "name": "split-pane",
         "title": {
-          "ko": "\ud0ed \ub0b4 \ubd84\ud560",
+          "ko": "탭 내 분할",
           "en": "Split Pane (Within-Tab)"
+        }
+      },
+      {
+        "name": "panes",
+        "title": {
+          "ko": "탭 내 pane 목록",
+          "en": "List Panes (Within-Tab)"
         }
       },
       {
         "name": "close-pane",
         "title": {
-          "ko": "\ud0ed \ub0b4 pane \ub2eb\uae30",
+          "ko": "탭 내 pane 닫기",
           "en": "Close Pane (Within-Tab)"
         }
       }
@@ -114,7 +121,7 @@
       {
         "id": "terminal",
         "description": {
-          "ko": "Ghostty \ud130\ubbf8\ub110 \ucee8\ud14c\uc774\ub108",
+          "ko": "Ghostty 터미널 컨테이너",
           "en": "Ghostty terminal container"
         }
       }
@@ -126,11 +133,11 @@
       "type": "enum",
       "default": "tab",
       "title": {
-        "ko": "\ubd84\ud560 \ubc29\uc2dd",
+        "ko": "분할 방식",
         "en": "Split mode"
       },
       "description": {
-        "ko": "\ud130\ubbf8\ub110 \ubd84\ud560\uc744 \ud0ed(\ubcc4\ub3c4 \ud328\ub110)\uc73c\ub85c \ud560\uc9c0 \ud0ed \ub0b4\ubd80(\ubdf0 \uc548 pane)\ub85c \ud560\uc9c0.",
+        "ko": "터미널 분할을 탭(별도 패널)으로 할지 탭 내부(뷰 안 pane)로 할지.",
         "en": "Whether a terminal split makes a new tab (panel) or an internal pane within the view."
       },
       "enum": [
@@ -139,11 +146,11 @@
       ],
       "enumLabels": [
         {
-          "ko": "\ud0ed \ubd84\ud560",
+          "ko": "탭 분할",
           "en": "Tab split"
         },
         {
-          "ko": "\ud0ed \ub0b4 \ubd84\ud560",
+          "ko": "탭 내 분할",
           "en": "Within-tab split"
         }
       ]

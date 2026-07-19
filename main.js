@@ -3484,12 +3484,23 @@ async function createPaneSplitHost(opts) {
   const makeDivider = (node, gapIndex, group, childEls) => {
     const horizontal = node.dir === "row";
     const d2 = document.createElement("div");
-    d2.style.cssText = `flex:0 0 ${DIVIDER_PX}px;cursor:${horizontal ? "col-resize" : "row-resize"};background:var(--divider-color, rgba(128,128,128,0.25));z-index:1`;
+    d2.style.cssText = `flex:0 0 ${DIVIDER_PX}px;cursor:${horizontal ? "col-resize" : "row-resize"};background:transparent;transition:background 0.12s;z-index:1`;
+    let dragging = false;
+    const hl = (on) => {
+      d2.style.background = on ? "var(--divider-hover-color, rgba(120,120,120,0.5))" : "transparent";
+    };
+    d2.addEventListener("mouseenter", () => hl(true));
+    d2.addEventListener("mouseleave", () => {
+      if (!dragging) hl(false);
+    });
     d2.addEventListener("mousedown", (e3) => {
       e3.preventDefault();
+      dragging = true;
+      hl(true);
       const rect = group.getBoundingClientRect();
-      const total = horizontal ? rect.width : rect.height;
-      if (total <= 0) return;
+      const dividerCount = node.children.length - 1;
+      const flexible = (horizontal ? rect.width : rect.height) - dividerCount * DIVIDER_PX;
+      if (flexible <= 0) return;
       const start = horizontal ? e3.clientX : e3.clientY;
       const a = gapIndex - 1;
       const b2 = gapIndex;
@@ -3498,7 +3509,7 @@ async function createPaneSplitHost(opts) {
       const next = [...node.sizes];
       const onMove = (ev) => {
         const cur = horizontal ? ev.clientX : ev.clientY;
-        const df = (cur - start) / total;
+        const df = (cur - start) / flexible;
         const sa = startA + df;
         const sb = startB - df;
         if (sa < MIN_FRAC || sb < MIN_FRAC) return;
@@ -3510,6 +3521,8 @@ async function createPaneSplitHost(opts) {
       const onUp = () => {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+        dragging = false;
+        hl(d2.matches(":hover"));
         tree = resizeSplit(tree, node.id, next);
         for (const { renderer } of hosts.values()) renderer.fit();
       };

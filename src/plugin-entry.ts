@@ -10,6 +10,7 @@ import {
   registerTerminalCommands,
   mountTerminalView,
   registerPaneCommands,
+  createPaneTreeStore,
   type FocusCoordinator,
   type TerminalViewHandle,
   type PluginContext,
@@ -44,6 +45,8 @@ function mountTerminal(
   const onTitle = (t: string): void => vctx.setTitle(t);
   // 설정이 분할 방식을 정한다: "within-tab" = 뷰 내부 pane, 그 외 = 단일 렌더러(탭분할=코어 panel.split).
   const withinTab = String(app.settings.get("splitMode") ?? "tab") === "within-tab";
+  // within-tab 분할 구조 영속(remount 넘어 pane 복원) — "data" 권한 있을 때만(kv). 없으면 undefined(graceful).
+  const treeStore = withinTab && app.data?.kv ? createPaneTreeStore(app.data.kv, viewId) : undefined;
   const focus = createFocusCoordinator();
   const handle = mountTerminalView(app, {
     mountRoot: container,
@@ -51,6 +54,7 @@ function mountTerminal(
     withinTab,
     focus,
     registry,
+    treeStore,
     // pane 마다 ghostty 렌더러(term+PTY+복원+IME). 첫 pane 만 initialCommand(에이전트 자동 실행).
     createRenderer: (paneId, isFirst) =>
       createGhosttyRenderer({

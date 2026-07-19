@@ -9,6 +9,8 @@ import {
   ensureSidecar,
   orchestrateRestore,
   ensureSession,
+  createFocusCoordinator,
+  type FocusCoordinator,
   type PluginContext,
   type PluginViewContext,
   type Disposable,
@@ -20,9 +22,8 @@ const FLOW_ACK_SIZE = 5000;
 interface Instance {
   ptyId: number | null;
   term?: Terminal;
-  ready: boolean;
   preedit?: import("./ime-preedit").PreeditHandle;
-  focusRequest?: { signal: AbortSignal };
+  focus: FocusCoordinator;
   dispose: () => void;
 }
 const instances = new Map<string, Instance>();
@@ -56,15 +57,14 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
 
   const inst: Instance = {
     ptyId: null,
-    ready: false,
+    focus: createFocusCoordinator(),
     dispose: () => {
       if (disposed) return;
       disposed = true;
       for (const s of subs.splice(0)) s.dispose();
       if (inst.ptyId != null) void app.pty?.close(inst.ptyId);
       instances.delete(viewId);
-      inst.ready = false;
-      inst.focusRequest = undefined;
+      inst.focus.detach();
       cell.remove();
     },
   };
@@ -239,16 +239,12 @@ function mountTerminal(container: HTMLElement, ctx: PluginContext, vctx: PluginV
     // 자동 실행 명령(에이전트 프로그램 채널) — spawn 직후 1회.
     if (vctx.command) void pty.write(ptyId, `${vctx.command}\r`);
 
-    inst.ready = true;
-    const queuedFocus = inst.focusRequest;
-    inst.focusRequest = undefined;
-    if (
-      queuedFocus &&
-      !queuedFocus.signal.aborted &&
-      !cell.contains(document.activeElement)
-    ) {
-      term.focus();
-    }
+    // 렌더러 준비 완료 — 대기 중이던 포커스 요청이 있으면 코디네이터가 적용한다(창전환 포커스
+    // 팔로우). IME commit 은 preedit 위임.
+    inst.focus.attach({
+      focus: () => term.focus(),
+      prepareFocusTransfer: () => inst.preedit?.prepareFocusTransfer(),
+    });
     vctx.setStatus(null);
   })();
 
@@ -273,17 +269,10 @@ export default {
             cleanups.delete(container);
           },
           prepareFocusTransfer(_container, vctx) {
-            if (!vctx.viewId) return;
-            instances.get(vctx.viewId)?.preedit?.prepareFocusTransfer();
+            if (vctx.viewId) instances.get(vctx.viewId)?.focus.prepareTransfer();
           },
           focus(_container, vctx, request) {
-            if (!vctx.viewId || request.signal.aborted) return;
-            const inst = instances.get(vctx.viewId);
-            if (!inst) return;
-            inst.focusRequest = request;
-            if (!inst.term || !inst.ready) return;
-            inst.focusRequest = undefined;
-            inst.term.focus();
+            if (vctx.viewId) instances.get(vctx.viewId)?.focus.request(request);
           },
         }),
       );

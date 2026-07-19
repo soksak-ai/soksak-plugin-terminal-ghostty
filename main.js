@@ -3282,6 +3282,34 @@ async function coldOrFresh(app, paneId, writeInert, sidecarDown) {
   return { replay: "none", painted: false };
 }
 
+// ../../kits/soksak-kit-terminal-common/src/focus-coordinator.ts
+function createFocusCoordinator() {
+  let target = null;
+  let pending = null;
+  const apply = () => {
+    if (!target || !pending || pending.signal.aborted) return;
+    pending = null;
+    target.focus();
+  };
+  return {
+    request(req) {
+      pending = req;
+      apply();
+    },
+    attach(t2) {
+      target = t2;
+      apply();
+    },
+    prepareTransfer() {
+      target?.prepareFocusTransfer();
+    },
+    detach() {
+      target = null;
+      pending = null;
+    }
+  };
+}
+
 // src/plugin-entry.ts
 var FLOW_ACK_SIZE = 5e3;
 var instances = /* @__PURE__ */ new Map();
@@ -3308,15 +3336,14 @@ function mountTerminal(container, ctx, vctx) {
   vctx.setStatus({ code: "connecting" });
   const inst = {
     ptyId: null,
-    ready: false,
+    focus: createFocusCoordinator(),
     dispose: () => {
       if (disposed) return;
       disposed = true;
       for (const s of subs.splice(0)) s.dispose();
       if (inst.ptyId != null) void app.pty?.close(inst.ptyId);
       instances.delete(viewId);
-      inst.ready = false;
-      inst.focusRequest = void 0;
+      inst.focus.detach();
       cell.remove();
     }
   };
@@ -3447,12 +3474,10 @@ function mountTerminal(container, ctx, vctx) {
       })
     );
     if (vctx.command) void pty.write(ptyId, `${vctx.command}\r`);
-    inst.ready = true;
-    const queuedFocus = inst.focusRequest;
-    inst.focusRequest = void 0;
-    if (queuedFocus && !queuedFocus.signal.aborted && !cell.contains(document.activeElement)) {
-      term.focus();
-    }
+    inst.focus.attach({
+      focus: () => term.focus(),
+      prepareFocusTransfer: () => inst.preedit?.prepareFocusTransfer()
+    });
     vctx.setStatus(null);
   })();
   return inst.dispose;
@@ -3473,17 +3498,10 @@ var plugin_entry_default = {
             cleanups.delete(container);
           },
           prepareFocusTransfer(_container, vctx) {
-            if (!vctx.viewId) return;
-            instances.get(vctx.viewId)?.preedit?.prepareFocusTransfer();
+            if (vctx.viewId) instances.get(vctx.viewId)?.focus.prepareTransfer();
           },
           focus(_container, vctx, request) {
-            if (!vctx.viewId || request.signal.aborted) return;
-            const inst = instances.get(vctx.viewId);
-            if (!inst) return;
-            inst.focusRequest = request;
-            if (!inst.term || !inst.ready) return;
-            inst.focusRequest = void 0;
-            inst.term.focus();
+            if (vctx.viewId) instances.get(vctx.viewId)?.focus.request(request);
           }
         })
       );

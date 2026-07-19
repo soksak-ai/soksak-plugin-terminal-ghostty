@@ -1,35 +1,27 @@
 // soksak-plugin-terminal-ghostty — Ghostty VT 엔진(WASM) 터미널의 진입점.
-// 렌더러(term)+PTY+복원+IME 는 renderer.ts(createGhosttyRenderer)가 소유한다 — 여기는 마운트
-// 수명·포커스 코디네이션·명령 등록만 얇게 처리한다(xterm plugin-entry 와 같은 자리·같은 얇기).
+// 렌더러(term)+PTY+복원+IME 는 renderer.ts(createGhosttyRenderer)가 소유한다. 마운트 오케스트레이션
+// (splitMode 분기·IO/포커스/명령 레지스트리·정리·split-pane 명령)은 kit(mountTerminalView·
+// registerSplitPaneCommand)이 소유한다 — 여기는 렌더러 팩토리와 뷰 컨테이너·제목만 준다(xterm 과 대칭).
 import { createGhosttyRenderer } from "./renderer";
 import {
   ensureSidecar,
   createFocusCoordinator,
   createTerminalRegistry,
   registerTerminalCommands,
-  createPaneSplitHost,
-  createActivePaneProxy,
-  type PaneSplitHost,
+  mountTerminalView,
+  registerSplitPaneCommand,
   type FocusCoordinator,
-  type TerminalRenderer,
+  type TerminalViewHandle,
   type PluginContext,
   type PluginViewContext,
-  type Disposable,
 } from "soksak-kit-terminal-common";
 
-// per-view 마운트 상태 — 포커스 코디네이터(렌더러 준비 전 포커스 요청을 잡는다) + 렌더러 + io 핸들.
-interface Mounted {
-  focus: FocusCoordinator;
-  renderer: TerminalRenderer | null;
-  splitHost: PaneSplitHost | null;
-  io: Disposable | null;
-  disposed: boolean;
-}
-const mounts = new Map<string, Mounted>();
+// per-view 마운트 상태 — 포커스 코디네이터(뷰 provider 라우팅) + kit 마운트 핸들(split 호스트·dispose).
+const mounts = new Map<string, { focus: FocusCoordinator; handle: TerminalViewHandle }>();
 // 활성 렌더러 레지스트리 — kit 공통 명령(send/clear/resume)이 대상을 해소한다.
 const registry = createTerminalRegistry();
 
-// 뷰 마운트 — 렌더러를 비동기 생성해 붙이고 io/포커스를 배선한다. 정리 함수를 반환한다.
+// 뷰 마운트 — splitMode 를 읽어 kit 오케스트레이터에 ghostty 렌더러 팩토리를 넘긴다.
 function mountTerminal(
   container: HTMLElement,
   ctx: PluginContext,
@@ -48,100 +40,36 @@ function mountTerminal(
   }
   vctx.setStatus({ code: "connecting" });
 
-  const m: Mounted = {
-    focus: createFocusCoordinator(),
-    renderer: null,
-    splitHost: null,
-    io: null,
-    disposed: false,
-  };
-  mounts.set(viewId, m);
-
   const cwd = vctx.restore?.cwd ?? vctx.root ?? undefined;
   const onTitle = (t: string): void => vctx.setTitle(t);
-  const fail = (e: unknown): void => {
-    if (!m.disposed) vctx.setStatus({ code: "error", message: `엔진 초기화 실패: ${e}` });
-  };
-  // 설정이 분할 방식을 정한다: "within-tab" = 뷰 내부를 pane 으로(kit split 호스트), 그 외 = 단일
-  // 렌더러(탭분할은 코어 panel.split 이 담당). 기본은 "tab"(정상 경로 무손상).
+  // 설정이 분할 방식을 정한다: "within-tab" = 뷰 내부 pane, 그 외 = 단일 렌더러(탭분할=코어 panel.split).
   const withinTab = String(app.settings.get("splitMode") ?? "tab") === "within-tab";
+  const focus = createFocusCoordinator();
+  const handle = mountTerminalView(app, {
+    mountRoot: container,
+    viewId,
+    withinTab,
+    focus,
+    registry,
+    // pane 마다 ghostty 렌더러(term+PTY+복원+IME). 첫 pane 만 initialCommand(에이전트 자동 실행).
+    createRenderer: (paneId, isFirst) =>
+      createGhosttyRenderer({
+        app,
+        viewId: paneId,
+        cwd,
+        initialCommand: isFirst ? vctx.command ?? undefined : undefined,
+        onTitle,
+      }),
+    setStatus: (s) => vctx.setStatus(s),
+    emptyMessage: "빈 뷰 — 마지막 pane 이 닫혔습니다",
+  });
+  mounts.set(viewId, { focus, handle });
 
-  if (withinTab) {
-    // 각 pane 은 자기 PTY(paneId=`${viewId}~n`). io/포커스는 활성 pane 에 위임. 첫 pane 만 initialCommand.
-    let seq = 0;
-    let first = true;
-    void createPaneSplitHost({
-      container,
-      mintPaneId: () => `${viewId}~${seq++}`,
-      createRenderer: async (paneId) => {
-        const r = await createGhosttyRenderer({
-          app,
-          viewId: paneId,
-          cwd,
-          initialCommand: first ? vctx.command ?? undefined : undefined,
-          onTitle,
-        });
-        first = false;
-        return r;
-      },
-      onEmpty: () => vctx.setStatus({ code: "error", message: "빈 뷰 — 마지막 pane 이 닫혔습니다" }),
-    })
-      .then((h) => {
-        if (m.disposed) {
-          void h.dispose();
-          return;
-        }
-        m.splitHost = h;
-        m.io =
-          app.pty?.registerIo?.(viewId, {
-            readBuffer: (lines) => h.active()?.renderer.readBuffer(lines) ?? "",
-            sendInput: (data) => h.active()?.renderer.sendInput(data),
-          }) ?? null;
-        m.focus.attach({
-          focus: () => h.active()?.renderer.focus(),
-          prepareFocusTransfer: () => h.active()?.renderer.prepareFocusTransfer(),
-        });
-        // 명령(send/clear/resume) 대상 레지스트리 — 위임 프록시 하나 등록(활성 pane 추종).
-        registry.set(viewId, createActivePaneProxy(h));
-        vctx.setStatus(null);
-      })
-      .catch(fail);
-    return () => cleanup(m, viewId, container);
-  }
-
-  void createGhosttyRenderer({ app, viewId, cwd, initialCommand: vctx.command ?? undefined, onTitle })
-    .then((r) => {
-      if (m.disposed) {
-        void r.dispose(); // 마운트 완료 전 unmount 됨 — 즉시 정리(그 사이 스폰된 PTY 를 닫는다)
-        return;
-      }
-      m.renderer = r;
-      registry.set(viewId, r);
-      container.appendChild(r.element);
-      // 코어 substrate IO 등록 — term.read/term.send 가 이 pane 에 닿는다(키=viewId=paneId).
-      m.io =
-        app.pty?.registerIo?.(viewId, {
-          readBuffer: (lines) => r.readBuffer(lines),
-          sendInput: (data) => r.sendInput(data),
-        }) ?? null;
-      // 렌더러 준비 완료 — 대기 중이던 포커스 요청이 있으면 코디네이터가 적용한다(창전환 팔로우).
-      m.focus.attach({ focus: () => r.focus(), prepareFocusTransfer: () => r.prepareFocusTransfer() });
-      vctx.setStatus(null);
-    })
-    .catch(fail);
-
-  return () => cleanup(m, viewId, container);
-}
-
-function cleanup(m: Mounted, viewId: string, container: HTMLElement): void {
-  m.disposed = true;
-  m.focus.detach();
-  m.io?.dispose();
-  void m.renderer?.dispose();
-  void m.splitHost?.dispose();
-  registry.delete(viewId);
-  mounts.delete(viewId);
-  container.replaceChildren();
+  return () => {
+    handle.dispose();
+    mounts.delete(viewId);
+    container.replaceChildren();
+  };
 }
 
 export default {
@@ -181,39 +109,16 @@ export default {
           handler: () => ({ ok: true, plugin: "soksak-plugin-terminal-ghostty", engine: "ghostty" }),
         }),
       );
-      // split-pane — 뷰 내부를 pane 으로 쪼갠다(탭내 분할, splitMode=within-tab 인 뷰만 대상).
-      ctx.subscriptions.push(
-        app.commands.register("split-pane", {
-          description:
-            "Split the terminal view into an internal pane (within-tab split; requires splitMode=within-tab).",
-          triggers: { ko: "터미널 탭내 분할 나누기" },
-          params: {
-            view: { type: "string", description: "Target view id (omit = first within-tab view)" },
-            dir: { type: "string", description: "'right' (default) or 'down'" },
-          },
-          returns: "{ ok, viewId?, paneId? }",
-          message: (d) => (d.ok ? `pane ${d.paneId} 을 분할했습니다.` : "분할 대상 없음"),
-          handler: async (p) => {
-            const viewId =
-              typeof p.view === "string" && p.view
-                ? p.view
-                : [...mounts].find(([, mm]) => mm.splitHost)?.[0];
-            const mm = viewId ? mounts.get(viewId) : undefined;
-            if (!mm?.splitHost) {
-              return { ok: false, code: "NO_TARGET", message: "no within-tab split host (set splitMode=within-tab)" };
-            }
-            const paneId = await mm.splitHost.split(p.dir === "down" ? "col" : "row");
-            return { ok: true, viewId, paneId };
-          },
-        }),
-      );
+      // split-pane — kit 이 명령 모양·i18n 을 소유. 대상 호스트 해소만 여기서(view 지정 또는 첫 within-tab).
+      registerSplitPaneCommand(ctx, (view) => {
+        const viewId = view ?? [...mounts].find(([, m]) => m.handle.splitHost)?.[0];
+        const m = viewId ? mounts.get(viewId) : undefined;
+        return m?.handle.splitHost ? { viewId: viewId!, host: m.handle.splitHost } : null;
+      });
     }
   },
   deactivate() {
-    for (const m of mounts.values()) {
-      void m.renderer?.dispose();
-      void m.splitHost?.dispose();
-    }
+    for (const m of mounts.values()) m.handle.dispose();
     mounts.clear();
   },
 };

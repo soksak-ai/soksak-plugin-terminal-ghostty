@@ -5,6 +5,8 @@ import { createGhosttyRenderer } from "./renderer";
 import {
   ensureSidecar,
   createFocusCoordinator,
+  createTerminalRegistry,
+  registerTerminalCommands,
   type FocusCoordinator,
   type TerminalRenderer,
   type PluginContext,
@@ -20,6 +22,8 @@ interface Mounted {
   disposed: boolean;
 }
 const mounts = new Map<string, Mounted>();
+// 활성 렌더러 레지스트리 — kit 공통 명령(send/clear/resume)이 대상을 해소한다.
+const registry = createTerminalRegistry();
 
 // 뷰 마운트 — 렌더러를 비동기 생성해 붙이고 io/포커스를 배선한다. 정리 함수를 반환한다.
 function mountTerminal(
@@ -56,6 +60,7 @@ function mountTerminal(
         return;
       }
       m.renderer = r;
+      registry.set(viewId, r);
       container.appendChild(r.element);
       // 코어 substrate IO 등록 — term.read/term.send 가 이 pane 에 닿는다(키=viewId=paneId).
       m.io =
@@ -76,6 +81,7 @@ function mountTerminal(
     m.focus.detach();
     m.io?.dispose();
     void m.renderer?.dispose();
+    registry.delete(viewId);
     mounts.delete(viewId);
     container.replaceChildren();
   };
@@ -108,6 +114,9 @@ export default {
       );
     }
     if (app.commands) {
+      // 공통 명령(send·clear·resume) — kit. 대상은 registry 로 해소.
+      registerTerminalCommands(ctx, registry);
+      // ping — 이 플러그인의 정체성.
       ctx.subscriptions.push(
         app.commands.register("ping", {
           description: "Load/engine check — returns the plugin id and engine (E2E).",

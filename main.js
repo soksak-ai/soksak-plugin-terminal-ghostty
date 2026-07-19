@@ -3323,6 +3323,95 @@ var KO2 = {
 };
 var t2 = makeTranslator(EN2, KO2);
 
+// ../../kits/soksak-kit-terminal-common/src/terminal-registry.ts
+function createTerminalRegistry() {
+  const map = /* @__PURE__ */ new Map();
+  const first = () => {
+    const e3 = map.entries().next();
+    return e3.done ? null : { viewId: e3.value[0], renderer: e3.value[1] };
+  };
+  return {
+    set: (id, r2) => void map.set(id, r2),
+    delete: (id) => void map.delete(id),
+    get: (id) => map.get(id),
+    entries: () => [...map.entries()],
+    first,
+    resolve: (view) => {
+      if (typeof view === "string" && view) {
+        const r2 = map.get(view);
+        return r2 ? { viewId: view, renderer: r2 } : null;
+      }
+      return first();
+    }
+  };
+}
+
+// ../../kits/soksak-kit-terminal-common/src/commands.ts
+var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function registerTerminalCommands(ctx, registry2) {
+  const app = ctx.app;
+  if (!app.commands) return;
+  const sub = (d2) => ctx.subscriptions.push(d2);
+  const readHint = (d2, why) => d2.ok && typeof d2.viewId === "string" ? [{ cmd: `sok term.read '{"pane":"${d2.viewId}"}'`, why }] : [];
+  sub(
+    app.commands.register("send", {
+      description: "Send text to the active terminal PTY.",
+      triggers: { ko: "\uD130\uBBF8\uB110 \uD14D\uC2A4\uD2B8 \uC804\uC1A1 \uC785\uB825" },
+      params: {
+        text: { type: "string", description: "Text to send to the terminal", required: true }
+      },
+      returns: "{ ok, viewId? }",
+      message: () => "\uD130\uBBF8\uB110\uC5D0 \uD14D\uC2A4\uD2B8\uB97C \uC804\uC1A1\uD588\uC2B5\uB2C8\uB2E4.",
+      // 전송은 즉시 돌아온다 — 출력은 잠시 후 그 터미널을 core term.read 로 확인한다(pane=이 viewId).
+      hint: (d2) => readHint(d2, "\uC7A0\uC2DC \uD6C4 \uC774 \uD130\uBBF8\uB110\uC744 \uC77D\uC5B4 \uCD9C\uB825\uC744 \uD655\uC778\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."),
+      handler: (p) => {
+        const entry = registry2.first();
+        if (!entry) return { ok: false, code: "NO_TARGET", message: "no active terminal" };
+        entry.renderer.sendInput(String(p.text ?? ""));
+        return { ok: true, viewId: entry.viewId };
+      }
+    })
+  );
+  sub(
+    app.commands.register("clear", {
+      description: "Clear the active terminal screen.",
+      triggers: { ko: "\uD130\uBBF8\uB110 \uC9C0\uC6B0\uAE30 \uD074\uB9AC\uC5B4" },
+      returns: "{ ok, viewId? }",
+      message: () => "\uD130\uBBF8\uB110 \uD654\uBA74\uC744 \uC9C0\uC6E0\uC2B5\uB2C8\uB2E4.",
+      handler: () => {
+        const entry = registry2.first();
+        if (!entry) return { ok: false, code: "NO_TARGET", message: "no active terminal" };
+        entry.renderer.clear();
+        return { ok: true, viewId: entry.viewId };
+      }
+    })
+  );
+  sub(
+    app.commands.register("resume", {
+      // [R9] 복원된 블록의 claude 세션을 이어간다 — 사용자 명시 액션만(auto-trigger 0). sessionId 는
+      // UUID 화이트리스트로 엄격 검증해 위조 history·셸 injection 을 차단한다.
+      description: "Resume a tracked claude session in the active terminal by its sessionId. User-initiated only; the sessionId must be a valid UUID.",
+      triggers: { ko: "\uC138\uC158 \uC774\uC5B4\uAC00\uAE30 \uC7AC\uAC1C resume" },
+      params: {
+        session: { type: "string", description: "claude sessionId (UUID) to resume", required: true }
+      },
+      returns: "{ ok, session, viewId? }",
+      message: (d2) => `\uC138\uC158 ${d2.session} \uC744 \uC774\uC5B4\uAC11\uB2C8\uB2E4.`,
+      hint: (d2) => readHint(d2, "\uC7A0\uC2DC \uD6C4 \uC774 \uD130\uBBF8\uB110\uC744 \uC77D\uC5B4 \uC774\uC5B4\uC9C4 \uC138\uC158\uC758 \uC751\uB2F5\uC744 \uD655\uC778\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."),
+      handler: (p) => {
+        const sid = String(p.session ?? "").trim();
+        if (!UUID_RE.test(sid)) {
+          return { ok: false, code: "INVALID_INPUT", message: "invalid sessionId (UUID required)" };
+        }
+        const entry = registry2.first();
+        if (!entry) return { ok: false, code: "NO_TARGET", message: "no active terminal" };
+        entry.renderer.sendInput(`claude --resume ${sid}\r`);
+        return { ok: true, session: sid, viewId: entry.viewId };
+      }
+    })
+  );
+}
+
 // src/renderer.ts
 var FLOW_ACK_SIZE = 5e3;
 var initP = null;
@@ -3464,6 +3553,7 @@ async function createGhosttyRenderer(opts) {
 
 // src/plugin-entry.ts
 var mounts = /* @__PURE__ */ new Map();
+var registry = createTerminalRegistry();
 function mountTerminal(container, ctx, vctx) {
   const app = ctx.app;
   const viewId = vctx.viewId;
@@ -3493,6 +3583,7 @@ function mountTerminal(container, ctx, vctx) {
       return;
     }
     m2.renderer = r2;
+    registry.set(viewId, r2);
     container.appendChild(r2.element);
     m2.io = app.pty?.registerIo?.(viewId, {
       readBuffer: (lines) => r2.readBuffer(lines),
@@ -3508,6 +3599,7 @@ function mountTerminal(container, ctx, vctx) {
     m2.focus.detach();
     m2.io?.dispose();
     void m2.renderer?.dispose();
+    registry.delete(viewId);
     mounts.delete(viewId);
     container.replaceChildren();
   };
@@ -3537,6 +3629,7 @@ var plugin_entry_default = {
       );
     }
     if (app.commands) {
+      registerTerminalCommands(ctx, registry);
       ctx.subscriptions.push(
         app.commands.register("ping", {
           description: "Load/engine check \u2014 returns the plugin id and engine (E2E).",

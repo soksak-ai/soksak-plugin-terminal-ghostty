@@ -8,6 +8,7 @@ import {
   createTerminalRegistry,
   registerTerminalCommands,
   createPaneSplitHost,
+  createActivePaneProxy,
   type PaneSplitHost,
   type FocusCoordinator,
   type TerminalRenderer,
@@ -100,6 +101,8 @@ function mountTerminal(
           focus: () => h.active()?.renderer.focus(),
           prepareFocusTransfer: () => h.active()?.renderer.prepareFocusTransfer(),
         });
+        // 명령(send/clear/resume) 대상 레지스트리 — 위임 프록시 하나 등록(활성 pane 추종).
+        registry.set(viewId, createActivePaneProxy(h));
         vctx.setStatus(null);
       })
       .catch(fail);

@@ -73,6 +73,27 @@
           "ko": "\ud551",
           "en": "Ping"
         }
+      },
+      {
+        "name": "send",
+        "title": {
+          "ko": "\ud14d\uc2a4\ud2b8 \uc804\uc1a1",
+          "en": "Send Text"
+        }
+      },
+      {
+        "name": "clear",
+        "title": {
+          "ko": "\uc9c0\uc6b0\uae30",
+          "en": "Clear"
+        }
+      },
+      {
+        "name": "resume",
+        "title": {
+          "ko": "\uc138\uc158 \uc774\uc5b4\uac00\uae30",
+          "en": "Resume Session"
+        }
       }
     ],
     "nodes": [

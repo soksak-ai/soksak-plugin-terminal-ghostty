@@ -36,6 +36,12 @@
       "version": "0.0.1"
     }
   ],
+  "consumes": [
+    {
+      "id": "soksak-spec-plugin-sidebar-file-tree",
+      "range": "^0.0.1"
+    }
+  ],
   "contributes": {
     "programs": [
       {
@@ -59,6 +65,16 @@
         "placements": [
           "content"
         ],
+        "sidebar": {
+          "left": [
+            {
+              "contract": "soksak-spec-plugin-sidebar-file-tree",
+              "range": "^0.0.1",
+              "view": "tree",
+              "instance": "shared"
+            }
+          ]
+        },
         "defaultPlacement": "content",
         "status": [
           "connecting",

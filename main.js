@@ -3560,6 +3560,7 @@ async function createPaneSplitHost(opts) {
   const hosts = /* @__PURE__ */ new Map();
   let tree;
   let activePane = "";
+  let viewFocused = false;
   const emitChange = () => onChange?.(tree);
   const wrapHost = (paneId, r2) => {
     const h = document.createElement("div");
@@ -3584,7 +3585,7 @@ async function createPaneSplitHost(opts) {
     for (const [id, { host }] of hosts) {
       const overlay = host.querySelector("[data-pane-overlay]");
       if (overlay) {
-        overlay.style.borderColor = multi && id === activePane ? "var(--pane-active-color, rgba(96,165,250,0.9))" : "transparent";
+        overlay.style.borderColor = multi && viewFocused && id === activePane ? "var(--pane-active-color, rgba(96,165,250,0.9))" : "transparent";
       }
     }
   }
@@ -3699,6 +3700,11 @@ async function createPaneSplitHost(opts) {
   render();
   let splitSeq = 0;
   return {
+    setFocused(focused) {
+      if (viewFocused === focused) return;
+      viewFocused = focused;
+      applyActiveStyle();
+    },
     async split(dir) {
       const target = hosts.has(activePane) ? activePane : panesOf(tree)[0];
       const paneId = mintPaneId();
@@ -3799,7 +3805,8 @@ function mountTerminalView(app, opts) {
     splitHost: null,
     single: null,
     io: null,
-    disposed: false
+    disposed: false,
+    focused: false
   };
   const fail = (err) => {
     if (!state.disposed) setStatus({ code: "error", message: String(err) });
@@ -3840,6 +3847,7 @@ function mountTerminalView(app, opts) {
         return;
       }
       state.splitHost = h;
+      h.setFocused(state.focused);
       state.io = app.pty?.registerIo?.(viewId, {
         readBuffer: (lines) => h.active()?.renderer.readBuffer(lines) ?? "",
         sendInput: (data) => h.active()?.renderer.sendInput(data)
@@ -3871,6 +3879,10 @@ function mountTerminalView(app, opts) {
   return {
     get splitHost() {
       return state.splitHost;
+    },
+    setFocused(focused) {
+      state.focused = focused;
+      state.splitHost?.setFocused(focused);
     },
     dispose() {
       state.disposed = true;
@@ -4118,6 +4130,9 @@ var plugin_entry_default = {
           unmount(container) {
             cleanups.get(container)?.();
             cleanups.delete(container);
+          },
+          setFocused(_container, vctx, focused) {
+            if (vctx.viewId) mounts.get(vctx.viewId)?.handle.setFocused(focused);
           },
           prepareFocusTransfer(_container, vctx) {
             if (vctx.viewId) mounts.get(vctx.viewId)?.focus.prepareTransfer();

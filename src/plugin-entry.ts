@@ -18,6 +18,8 @@ import {
 } from "soksak-kit-terminal-common";
 
 // per-view 마운트 상태 — 포커스 코디네이터(뷰 provider 라우팅) + kit 마운트 핸들(split 호스트·dispose).
+// 뷰별 폰트 줌 델타(관찰 확대 — 메모리 수명).
+const viewFontDelta = new Map<string, number>();
 const mounts = new Map<string, { focus: FocusCoordinator; handle: TerminalViewHandle }>();
 // 활성 렌더러 레지스트리 — kit 공통 명령(send/clear/resume)이 대상을 해소한다.
 const registry = createTerminalRegistry();
@@ -103,6 +105,20 @@ export default {
           },
           focus(_container, vctx, request) {
             if (vctx.viewId) mounts.get(vctx.viewId)?.focus.request(request);
+          },
+          zoom(_container, vctx, action) {
+            // 뷰-단위 폰트 줌(§Zoom) — 기준(설정 없음: 13) + 델타를 전 렌더러에 재적용.
+            const viewId = vctx.viewId;
+            if (!viewId) return;
+            const m = mounts.get(viewId);
+            if (!m) return;
+            const cur = viewFontDelta.get(viewId) ?? 0;
+            const next =
+              action === "reset" ? 0 : Math.max(-7, Math.min(27, cur + (action === "in" ? 1 : -1)));
+            viewFontDelta.set(viewId, next);
+            m.handle.eachRenderer((r) =>
+              r.applySettings?.({ fontSize: 13 + next }),
+            );
           },
         }),
       );

@@ -3880,6 +3880,10 @@ function mountTerminalView(app, opts) {
     get splitHost() {
       return state.splitHost;
     },
+    eachRenderer(fn) {
+      if (state.single) fn(state.single);
+      for (const [, renderer] of state.splitHost?.entries() ?? []) fn(renderer);
+    },
     setFocused(focused) {
       state.focused = focused;
       state.splitHost?.setFocused(focused);
@@ -4051,6 +4055,13 @@ async function createGhosttyRenderer(opts) {
     focus: () => term.focus(),
     prepareFocusTransfer: () => preedit.prepareFocusTransfer(),
     fit: () => fit.fit(),
+    applySettings: (next) => {
+      const size = Number(next.fontSize);
+      if (!Number.isFinite(size) || size <= 0) return;
+      term.options.fontSize = size;
+      term.renderer?.remeasureFont?.();
+      fit.fit();
+    },
     sendInput: (data) => void pty.write(ptyId, data),
     readBuffer,
     write: (data) => term.write(data),
@@ -4067,6 +4078,7 @@ async function createGhosttyRenderer(opts) {
 }
 
 // src/plugin-entry.ts
+var viewFontDelta = /* @__PURE__ */ new Map();
 var mounts = /* @__PURE__ */ new Map();
 var registry = createTerminalRegistry();
 function mountTerminal(container, ctx, vctx) {
@@ -4139,6 +4151,18 @@ var plugin_entry_default = {
           },
           focus(_container, vctx, request) {
             if (vctx.viewId) mounts.get(vctx.viewId)?.focus.request(request);
+          },
+          zoom(_container, vctx, action) {
+            const viewId = vctx.viewId;
+            if (!viewId) return;
+            const m2 = mounts.get(viewId);
+            if (!m2) return;
+            const cur = viewFontDelta.get(viewId) ?? 0;
+            const next = action === "reset" ? 0 : Math.max(-7, Math.min(27, cur + (action === "in" ? 1 : -1)));
+            viewFontDelta.set(viewId, next);
+            m2.handle.eachRenderer(
+              (r2) => r2.applySettings?.({ fontSize: 13 + next })
+            );
           }
         })
       );

@@ -207,6 +207,15 @@ export async function createGhosttyRenderer(
     focus: () => term.focus(),
     prepareFocusTransfer: () => preedit.prepareFocusTransfer(),
     fit: () => fit.fit(),
+    applySettings: (next) => {
+      // 라이브 폰트 재적용(§Zoom·설정 라이브) — mount 1회 읽기의 반쪽 배선 근치. ghostty-web
+      // 은 options.fontSize 변경 후 재측정·재fit 이 공개 경로다(remeasureFont, 헤드 주석 참조).
+      const size = Number((next as { fontSize?: number }).fontSize);
+      if (!Number.isFinite(size) || size <= 0) return;
+      (term.options as { fontSize?: number }).fontSize = size;
+      (term.renderer as unknown as { remeasureFont?: () => void } | undefined)?.remeasureFont?.();
+      fit.fit();
+    },
     sendInput: (data) => void pty.write(ptyId, data),
     readBuffer,
     write: (data) => term.write(data),

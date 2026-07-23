@@ -8,8 +8,8 @@
   "dependencies": {
     "esbuild": "^0.28.1",
     "ghostty-web": "^0.4.0",
-    "typescript": "^7.0.2",
-    "soksak-kit-terminal-common": "github:soksak-ai/soksak-kit-terminal-common"
+    "soksak-kit-terminal-common": "github:soksak-ai/soksak-kit-terminal-common",
+    "typescript": "^7.0.2"
   },
   "name": "soksak-plugin-terminal-ghostty",
   "private": true,

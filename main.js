@@ -3160,7 +3160,7 @@ function openWithoutImplicitFocus(terminal, container) {
   try {
     terminal.open(container);
   } finally {
-    terminal.focus = () => terminal.element?.focus();
+    terminal.focus = () => (terminal.textarea ?? terminal.element)?.focus();
   }
 }
 

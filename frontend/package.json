@@ -1,0 +1,6 @@
+{
+  "name": "@soksak/soksak-plugin-terminal-ghostty", "version": "0.0.1", "private": true, "type": "module",
+  "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit", "build": "node build.mjs" },
+  "dependencies": { "@soksak/soksak-kit-plugin-terminal": "file:../../../soksak-kits/soksak-kit-plugin-terminal" },
+  "devDependencies": { "@types/node": "24.10.0", "esbuild": "0.28.2", "jsdom": "30.0.1", "typescript": "5.9.3", "vitest": "3.2.4" }
+}

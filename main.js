@@ -82,16 +82,16 @@ function createTerminalSessionBinding(host, options) {
     args: { request: value }
   });
   const answer = (response) => {
-    if (response.ok !== true) throw new Error(typeof response.error === "string" ? response.error : "unit refused");
+    if (response.ok !== true) throw new Error(typeof response.error === "string" ? response.error : "sidecar refused request");
     return response.result?.data ?? {};
   };
   let ptyPromise = null;
-  const pty = () => ptyPromise ??= host.sidecar.open(options.ptyUnit);
+  const pty = () => ptyPromise ??= host.sidecar.open(options.ptySidecar);
   let providerPromise = null;
   const provider = () => providerPromise ??= (async () => {
     const key = options.checkpointKey ?? "terminal-checkpoint-key-v1";
     options.onOperation?.("opening-provider");
-    return host.sidecar.open(options.providerUnit, {
+    return host.sidecar.open(options.providerSidecar, {
       generatedSecretEnv: { [KEY_ENV]: { key, bytes: 32 } }
     });
   })();
@@ -411,8 +411,8 @@ var viewParam = { type: "string", description: { en: "Terminal view id", ko: "\u
 function activateProviderTerminalPlugin(host, subscriptions, config) {
   const screens = /* @__PURE__ */ new Map();
   const binding = createTerminalSessionBinding(host, {
-    ptyUnit: "pty",
-    providerUnit: config.providerUnit,
+    ptySidecar: "pty",
+    providerSidecar: config.providerSidecar,
     onOperation(operation) {
       for (const screen of screens.values()) {
         screen.presenter.root.dataset.terminalOperation = operation;
@@ -724,7 +724,7 @@ function activate(context) {
   activateProviderTerminalPlugin(context.app, context.subscriptions, {
     pluginId: "soksak-plugin-terminal-ghostty",
     engineId: "ghostty",
-    providerUnit: "terminal-ghostty",
+    providerSidecar: "terminal-ghostty",
     programId: "terminal-ghostty"
   });
 }

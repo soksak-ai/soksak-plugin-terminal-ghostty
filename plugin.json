@@ -1,6 +1,7 @@
 {
-  "spec": "soksak-spec-plugin@0.0.1", "id": "soksak-plugin-terminal-ghostty",
+  "id": "soksak-plugin-terminal-ghostty",
   "name": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "version": "0.0.1",
+  "appVersionRequirement": "0.0.1",
   "description": { "en": "Terminal view rendered from the ghostty provider frame.", "ko": "Ghostty 공급자 프레임을 렌더링하는 터미널 뷰입니다." },
   "entry": "main.js", "permissions": ["ui", "commands", "programs", "sidecar", "secrets", "terminal"],
   "implements": [{ "id": "soksak-spec-plugin-terminal", "version": "0.0.1" }],
@@ -20,7 +21,7 @@
     "views": [{ "id": "content", "title": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "icon": "VT", "surfaces": ["tab"], "status": ["connecting", "error"] }]
   },
   "sidecars": [
-    { "name": "pty", "interface": { "id": "soksak-spec-sidecar-pty", "version": "0.0.1" } },
-    { "name": "terminal-ghostty", "interface": { "id": "soksak-spec-sidecar-terminal", "version": "0.0.1" } }
+    { "name": "pty", "interface": { "id": "soksak-spec-sidecar-pty", "requirement": "0.0.1" } },
+    { "name": "terminal-ghostty", "interface": { "id": "soksak-spec-sidecar-terminal", "requirement": "0.0.1" } }
   ]
 }

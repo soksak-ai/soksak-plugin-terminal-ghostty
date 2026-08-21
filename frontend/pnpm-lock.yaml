@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@soksak/soksak-contract-plugin-terminal':
+        specifier: file:../../../soksak-contracts/soksak-contract-plugin-terminal
+        version: file:../../../soksak-contracts/soksak-contract-plugin-terminal
       '@soksak/soksak-kit-plugin-terminal':
         specifier: file:../../../soksak-kits/soksak-kit-plugin-terminal
         version: file:../../../soksak-kits/soksak-kit-plugin-terminal

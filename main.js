@@ -227,18 +227,18 @@ function createProviderFramePresenter(container, send) {
   screen.setAttribute("aria-live", "polite");
   screen.tabIndex = -1;
   Object.assign(screen.style, { margin: "0", width: "100%", height: "100%", overflow: "auto", whiteSpace: "pre" });
-  const input = document.createElement("textarea");
-  input.dataset.node = "terminal-input";
-  input.setAttribute("aria-label", "Terminal input");
-  input.autocapitalize = "off";
-  input.autocomplete = "off";
-  input.spellcheck = false;
-  Object.assign(input.style, { position: "absolute", width: "1px", height: "1px", opacity: "0" });
-  input.addEventListener("input", () => {
-    if (input.value) send(input.value);
-    input.value = "";
+  const input2 = document.createElement("textarea");
+  input2.dataset.node = "terminal-input";
+  input2.setAttribute("aria-label", "Terminal input");
+  input2.autocapitalize = "off";
+  input2.autocomplete = "off";
+  input2.spellcheck = false;
+  Object.assign(input2.style, { position: "absolute", width: "1px", height: "1px", opacity: "0" });
+  input2.addEventListener("input", () => {
+    if (input2.value) send(input2.value);
+    input2.value = "";
   });
-  input.addEventListener("keydown", (event) => {
+  input2.addEventListener("keydown", (event) => {
     const sequences = { Enter: "\r", Backspace: "\x7F", Tab: "	", ArrowUp: "\x1B[A", ArrowDown: "\x1B[B", ArrowRight: "\x1B[C", ArrowLeft: "\x1B[D" };
     const sequence = sequences[event.key];
     if (sequence) {
@@ -249,14 +249,14 @@ function createProviderFramePresenter(container, send) {
   const recovery = document.createElement("span");
   recovery.dataset.node = "terminal-restore-status";
   recovery.hidden = true;
-  container.replaceChildren(screen, input, recovery);
+  container.replaceChildren(screen, input2, recovery);
   let text = "";
   let size = { cols: 0, rows: 0 };
   const textListeners = /* @__PURE__ */ new Set();
   return {
     root: container,
     screen,
-    input,
+    input: input2,
     render(frame) {
       size = { cols: frame.cols, rows: frame.rows };
       text = frame.lines.map((line) => line.map((cell) => cell.text).join("").replace(/ +$/, "")).join("\n");
@@ -309,14 +309,102 @@ function createProviderFramePresenter(container, send) {
       });
     },
     focus() {
-      input.focus({ preventScroll: true });
-      return document.activeElement === input;
+      input2.focus({ preventScroll: true });
+      return document.activeElement === input2;
     },
     dispose() {
       container.replaceChildren();
     }
   };
 }
+
+// ../../../soksak-kits/soksak-kit-plugin-terminal/node_modules/.pnpm/@soksak+soksak-contract-plugin-terminal@file+..+..+soksak-contracts+soksak-contract-plugin-terminal/node_modules/@soksak/soksak-contract-plugin-terminal/src/index.ts
+var TERMINAL_PLUGIN_CONTRACT = Object.freeze({
+  id: "soksak-spec-plugin-terminal",
+  version: "0.0.1"
+});
+var TERMINAL_PLUGIN_PHASES = Object.freeze([
+  "initializing",
+  "preparing-recovery",
+  "applying-snapshot",
+  "attaching-live-stream",
+  "live",
+  "archived",
+  "degraded-tail",
+  "blocked",
+  "closed"
+]);
+var TERMINAL_PLUGIN_COMMANDS = Object.freeze([
+  "status",
+  "wait",
+  "archive",
+  "send",
+  "read",
+  "clear",
+  "focus",
+  "recovery-status"
+]);
+var input = (properties, required = []) => Object.freeze({ properties: Object.freeze(properties), required: Object.freeze(required), additionalProperties: false });
+var output = (properties, required) => input(properties, required);
+var statusOutput = output({
+  phase: "string",
+  pluginId: "string",
+  engineId: "string",
+  rendererId: "string",
+  rendererProfile: "string",
+  recoveryOutcome: "string",
+  fidelity: "string",
+  failure: ["object", "null"]
+}, ["phase", "pluginId", "engineId", "rendererId", "rendererProfile", "recoveryOutcome", "fidelity", "failure"]);
+var viewInput = () => input({ view: "string" });
+var TERMINAL_PLUGIN_COMMAND_SCHEMAS = Object.freeze({
+  status: { danger: "none", input: viewInput(), output: statusOutput },
+  wait: {
+    danger: "none",
+    input: input({ view: "string", phase: "string", timeoutMs: "number", contains: "string" }, ["phase"]),
+    output: output({
+      phase: "string",
+      recoveryOutcome: "string",
+      fidelity: "string",
+      failure: ["object", "null"],
+      cols: "number",
+      rows: "number",
+      operation: "string"
+    }, ["phase", "recoveryOutcome", "fidelity"])
+  },
+  archive: {
+    danger: "none",
+    input: viewInput(),
+    output: output({ archived: "boolean", bytes: "number" }, ["archived"])
+  },
+  send: {
+    danger: "inject",
+    input: input({ view: "string", data: "string" }, ["data"]),
+    output: output({ sent: ["number", "boolean"] }, ["sent"])
+  },
+  read: {
+    danger: "none",
+    input: input({ view: "string", lines: "number" }),
+    output: output({ text: "string" }, ["text"])
+  },
+  clear: {
+    danger: "none",
+    input: viewInput(),
+    output: output({ cleared: "boolean" }, ["cleared"])
+  },
+  focus: {
+    danger: "none",
+    input: viewInput(),
+    output: output({ focused: "boolean" }, ["focused"])
+  },
+  "recovery-status": { danger: "none", input: viewInput(), output: statusOutput }
+});
+var TERMINAL_PLUGIN_NODES = Object.freeze([
+  "terminal-root",
+  "terminal-screen",
+  "terminal-input",
+  "terminal-restore-status"
+]);
 
 // ../../../soksak-kits/soksak-kit-plugin-terminal/src/provider-terminal-plugin.ts
 var viewParam = { type: "string", description: { en: "Terminal view id", ko: "\uD130\uBBF8\uB110 \uBDF0 ID" } };
@@ -336,12 +424,14 @@ function activateProviderTerminalPlugin(host, subscriptions, config) {
       en: `${config.engineId} terminal ${name}`,
       ko: `${config.engineId} \uD130\uBBF8\uB110 ${name}`
     };
+    const schema = TERMINAL_PLUGIN_COMMAND_SCHEMAS[name];
     const disposable = host.commands.register(name, {
       description,
       params,
       returns: "{}",
       message: () => description,
-      handler
+      handler,
+      ...schema?.danger === "inject" ? { danger: "inject" } : {}
     });
     if (disposable) subscriptions.push(disposable);
   };
@@ -356,7 +446,7 @@ function activateProviderTerminalPlugin(host, subscriptions, config) {
       if (!pane) throw new Error("terminal view requires a view id");
       let session = 0;
       let stopped = false;
-      let output;
+      let output2;
       let io;
       let requestedSequence = 0;
       let renderedSequence = 0;
@@ -421,7 +511,7 @@ function activateProviderTerminalPlugin(host, subscriptions, config) {
       };
       const attach = (opened) => {
         session = opened;
-        output = binding.onData(session, (_bytes, throughSeq) => {
+        output2 = binding.onData(session, (_bytes, throughSeq) => {
           requestedSequence = Math.max(requestedSequence, throughSeq);
           void renderLatest();
         });
@@ -524,7 +614,7 @@ function activateProviderTerminalPlugin(host, subscriptions, config) {
           stopped = true;
           writable = false;
           resize.disconnect();
-          output?.dispose();
+          output2?.dispose();
           io?.dispose();
           if (session) binding.detach(session);
           status.close();

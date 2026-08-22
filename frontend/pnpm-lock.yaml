@@ -12,8 +12,8 @@ importers:
         specifier: github:soksak-ai/soksak-contract-plugin-terminal#494ffa0bbba813f5b43501a119190f395fa45e8f
         version: https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/494ffa0bbba813f5b43501a119190f395fa45e8f
       '@soksak/soksak-kit-plugin-terminal':
-        specifier: github:soksak-ai/soksak-kit-plugin-terminal#b304dcb956ce832ed4edbc606ae960d5c9b01407
-        version: https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/b304dcb956ce832ed4edbc606ae960d5c9b01407
+        specifier: github:soksak-ai/soksak-kit-plugin-terminal#6bfd71e360b6f6b179be62fbcdbc650d2a11319d
+        version: https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/6bfd71e360b6f6b179be62fbcdbc650d2a11319d
     devDependencies:
       '@types/node':
         specifier: 24.10.0
@@ -398,9 +398,9 @@ packages:
     resolution: {tarball: https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/494ffa0bbba813f5b43501a119190f395fa45e8f}
     version: 0.0.2
 
-  '@soksak/soksak-kit-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/b304dcb956ce832ed4edbc606ae960d5c9b01407':
-    resolution: {tarball: https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/b304dcb956ce832ed4edbc606ae960d5c9b01407}
-    version: 0.0.4
+  '@soksak/soksak-kit-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/6bfd71e360b6f6b179be62fbcdbc650d2a11319d':
+    resolution: {tarball: https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/6bfd71e360b6f6b179be62fbcdbc650d2a11319d}
+    version: 0.0.5
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -980,7 +980,7 @@ snapshots:
 
   '@soksak/soksak-contract-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/494ffa0bbba813f5b43501a119190f395fa45e8f': {}
 
-  '@soksak/soksak-kit-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/b304dcb956ce832ed4edbc606ae960d5c9b01407':
+  '@soksak/soksak-kit-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/6bfd71e360b6f6b179be62fbcdbc650d2a11319d':
     dependencies:
       '@soksak/soksak-contract-plugin-terminal': https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/494ffa0bbba813f5b43501a119190f395fa45e8f
 

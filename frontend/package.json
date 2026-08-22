@@ -1,7 +1,7 @@
 {
-  "name": "@soksak/soksak-plugin-terminal-ghostty", "version": "0.0.3", "private": true, "type": "module",
+  "name": "@soksak/soksak-plugin-terminal-ghostty", "version": "0.0.4", "private": true, "type": "module",
   "pnpm": { "onlyBuiltDependencies": ["esbuild"] },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit", "build": "node build.mjs", "verify": "pnpm typecheck && pnpm test && pnpm build && git diff --exit-code -- ../main.js" },
-  "dependencies": { "@soksak/soksak-contract-plugin-terminal": "github:soksak-ai/soksak-contract-plugin-terminal#494ffa0bbba813f5b43501a119190f395fa45e8f", "@soksak/soksak-kit-plugin-terminal": "github:soksak-ai/soksak-kit-plugin-terminal#bfca8d19373c478ebc8d39efa1ce2e74d7b16644" },
+  "dependencies": { "@soksak/soksak-contract-plugin-terminal": "github:soksak-ai/soksak-contract-plugin-terminal#494ffa0bbba813f5b43501a119190f395fa45e8f", "@soksak/soksak-kit-plugin-terminal": "github:soksak-ai/soksak-kit-plugin-terminal#50d6bedadad528b9e97c860166bb44e65e261248" },
   "devDependencies": { "@types/node": "24.10.0", "esbuild": "0.28.2", "jsdom": "30.0.1", "typescript": "5.9.3", "vitest": "3.2.4" }
 }

@@ -19,18 +19,8 @@ jobs:
           path: soksak-plugins/soksak-plugin-terminal-ghostty
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          repository: soksak-ai/soksak-contract-plugin-terminal
-          ref: 78a09a60b569b9b6cf83a6f3c72086948e650ff7
-          path: soksak-contracts/soksak-contract-plugin-terminal
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: soksak-ai/soksak-kit-plugin-terminal
-          ref: 2c921e07ac0b626ece438fc69982a28bba413ce4
-          path: soksak-kits/soksak-kit-plugin-terminal
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
           repository: soksak-ai/soksak-spec
-          ref: 23a941a99f037f48120243e5724a73284e6cfb30
+          ref: 8afc21b75bfbef7090410a69da9fd48796dfec62
           path: soksak-plugins/soksak-plugin-terminal-ghostty/.dependency/soksak-spec
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:

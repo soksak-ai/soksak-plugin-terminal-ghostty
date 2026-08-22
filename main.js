@@ -318,7 +318,7 @@ function createProviderFramePresenter(container, send) {
   };
 }
 
-// ../../../soksak-kits/soksak-kit-plugin-terminal/node_modules/.pnpm/@soksak+soksak-contract-plugin-terminal@file+..+..+soksak-contracts+soksak-contract-plugin-terminal/node_modules/@soksak/soksak-contract-plugin-terminal/src/index.ts
+// ../../../soksak-kits/soksak-kit-plugin-terminal/node_modules/.pnpm/@soksak+soksak-contract-plugin-terminal@https+++codeload.github.com+soksak-ai+soksak-co_87f5bc2aa9f1d82915181da5150989bc/node_modules/@soksak/soksak-contract-plugin-terminal/src/index.ts
 var TERMINAL_PLUGIN_CONTRACT = Object.freeze({
   id: "soksak-spec-plugin-terminal",
   version: "0.0.1"

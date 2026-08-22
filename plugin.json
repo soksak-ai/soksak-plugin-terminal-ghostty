@@ -1,6 +1,6 @@
 {
   "id": "soksak-plugin-terminal-ghostty",
-  "name": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "version": "0.0.1",
+  "name": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "version": "0.0.2",
   "appVersionRequirement": "0.0.1",
   "description": { "en": "Terminal view rendered from the ghostty provider frame.", "ko": "Ghostty 공급자 프레임을 렌더링하는 터미널 뷰입니다." },
   "entry": "main.js", "permissions": ["ui", "commands", "programs", "sidecar", "secrets", "terminal"],

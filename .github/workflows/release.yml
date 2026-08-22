@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: soksak-ai/soksak-spec
-          ref: ac3ed812d4c48c85301bba78add9239086a5fd1c
+          ref: 1f53965c592a44766df0420c3e6bab19e2362377
           path: soksak-plugins/soksak-plugin-terminal-ghostty/.dependency/soksak-spec
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:

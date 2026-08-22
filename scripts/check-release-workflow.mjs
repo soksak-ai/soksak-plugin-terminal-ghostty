@@ -18,5 +18,6 @@ requireText("bin/validate.mjs release", "canonical release validator");
 requireText("--plugin-manifest plugin.json", "plugin conformance manifest");
 requireText("ref: 1673f33d2102f6ad168f28871d312301fd307371", "canonical spec commit");
 requireText("release-template/publish-canonical-release.mjs", "canonical immutable publisher");
+requireText("GH_TOKEN: ${{ steps.release-token.outputs.token }}", "GitHub CLI release token");
 if (workflow.includes("gh release create")) throw new Error("gh release create cannot publish protected immutable tags");
 console.log("plugin release workflow contract: passed");

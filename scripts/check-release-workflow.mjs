@@ -16,4 +16,7 @@ for (const obsolete of ["release/dependencies.json", "release/source-dependencie
 requireText("release-template/build-release.mjs", "canonical plugin release builder");
 requireText("bin/validate.mjs release", "canonical release validator");
 requireText("--plugin-manifest plugin.json", "plugin conformance manifest");
+requireText("ref: 1673f33d2102f6ad168f28871d312301fd307371", "canonical spec commit");
+requireText("release-template/publish-canonical-release.mjs", "canonical immutable publisher");
+if (workflow.includes("gh release create")) throw new Error("gh release create cannot publish protected immutable tags");
 console.log("plugin release workflow contract: passed");

@@ -8,6 +8,7 @@ describe("terminal plugin manifest contract", () => {
     expect(manifest).not.toHaveProperty("spec");
     expect(manifest.appVersionRequirement).toBe("0.0.1");
     expect(manifest.implements).toEqual([TERMINAL_PLUGIN_CONTRACT]);
+    expect(manifest.sidecars.map((sidecar: { name: string }) => sidecar.name)).toEqual(["pty", "recovery"]);
     for (const sidecar of manifest.sidecars) {
       expect(sidecar.interface).toEqual({ id: expect.any(String), requirement: "0.0.1" });
     }

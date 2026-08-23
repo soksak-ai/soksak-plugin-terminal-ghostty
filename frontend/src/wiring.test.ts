@@ -11,7 +11,7 @@ describe("Ghostty terminal plugin wiring", () => {
     activate({ app, subscriptions: [] });
     expect(activateProvider).toHaveBeenCalledWith(app, [], {
       pluginId: "soksak-plugin-terminal-ghostty", engineId: "ghostty",
-      providerSidecar: "terminal-ghostty", programId: "terminal-ghostty",
+      recoverySidecar: "recovery", programId: "terminal-ghostty",
     });
   });
 });

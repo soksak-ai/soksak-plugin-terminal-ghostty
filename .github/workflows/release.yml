@@ -24,10 +24,10 @@ jobs:
           path: soksak-plugins/soksak-plugin-terminal-ghostty/.dependency/soksak-spec
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: "24.19.0"
+          node-version: "26.7.0"
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
         with:
-          version: "10.30.3"
+          version: "11.22.0"
       - name: Build the exact public spec
         working-directory: soksak-plugins/soksak-plugin-terminal-ghostty/.dependency/soksak-spec
         run: |

@@ -12,12 +12,12 @@ importers:
         specifier: github:soksak-ai/soksak-contract-plugin-terminal#39fe76a56b520f15ba8256620b3b05d89ff34a9d
         version: https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/39fe76a56b520f15ba8256620b3b05d89ff34a9d
       '@soksak/soksak-kit-plugin-terminal':
-        specifier: github:soksak-ai/soksak-kit-plugin-terminal#9eaa90717d90c6d1fea455bdc013b70e8cf29e82
-        version: https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/9eaa90717d90c6d1fea455bdc013b70e8cf29e82
+        specifier: github:soksak-ai/soksak-kit-plugin-terminal#c7605d9a08ecaa202b2ade18ae852987dbb4c090
+        version: https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/c7605d9a08ecaa202b2ade18ae852987dbb4c090(@soksak/soksak-contract-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/39fe76a56b520f15ba8256620b3b05d89ff34a9d)
     devDependencies:
       '@types/node':
-        specifier: 24.10.0
-        version: 24.10.0
+        specifier: 26.2.0
+        version: 26.2.0
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -29,7 +29,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 3.2.4
-        version: 3.2.4(@types/node@24.10.0)(jsdom@30.0.1)
+        version: 3.2.4(@types/node@26.2.0)(jsdom@30.0.1)
 
 packages:
 
@@ -395,12 +395,15 @@ packages:
     os: [win32]
 
   '@soksak/soksak-contract-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/39fe76a56b520f15ba8256620b3b05d89ff34a9d':
-    resolution: {tarball: https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/39fe76a56b520f15ba8256620b3b05d89ff34a9d}
+    resolution: {gitHosted: true, integrity: sha512-sZPZT17lLiRlh7511IEtXb9g27jRSucWT++4GEcsG9hiZy+7w/z++ZQ2ILIG1pwe+H+XzkHg4J4T/q/kyicmrg==, tarball: https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/39fe76a56b520f15ba8256620b3b05d89ff34a9d}
     version: 0.0.3
 
-  '@soksak/soksak-kit-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/9eaa90717d90c6d1fea455bdc013b70e8cf29e82':
-    resolution: {tarball: https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/9eaa90717d90c6d1fea455bdc013b70e8cf29e82}
-    version: 0.0.10
+  '@soksak/soksak-kit-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/c7605d9a08ecaa202b2ade18ae852987dbb4c090':
+    resolution: {gitHosted: true, integrity: sha512-6c57Xg1xQW9uXGVX8GappLkqexaPKwd6dzs0zgo9m61RfA04vj0Zc2CBKeGjqCq6xjD1KeRxY+u6/3qEskkSMg==, tarball: https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/c7605d9a08ecaa202b2ade18ae852987dbb4c090}
+    version: 0.0.11
+    engines: {node: 26.7.0}
+    peerDependencies:
+      '@soksak/soksak-contract-plugin-terminal': 0.0.3
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -411,8 +414,8 @@ packages:
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
 
-  '@types/node@24.10.0':
-    resolution: {integrity: sha512-qzQZRBqkFsYyaSWXuEHc2WR9c0a0CXwiE5FWUvn7ZM+vdy1uZLfCunD38UzhuB7YN/J11ndbDBcTmOdxJo9Q7A==}
+  '@types/node@26.2.0':
+    resolution: {integrity: sha512-5IviulTZeRNp2vAJ514cc/HUlY5nZ9fCbq9DMyC52BrhFZACo3nI0R7qBxhQmo/d27NFe96ur/b7Wwxklda+kg==}
 
   '@vitest/expect@3.2.4':
     resolution: {integrity: sha512-Io0yyORnB6sikFlt8QW5K7slY4OjqNX9jmJQ02QDda8lyM6B5oNgVWoSoKPac8/kgnCUzuHQKrSLtu/uOqqrig==}
@@ -661,8 +664,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  undici-types@7.16.0:
-    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
+  undici-types@8.3.0:
+    resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
   undici@8.10.0:
     resolution: {integrity: sha512-HvltHd7avK13QIw/oLe4qoOLyoVSoafqJ2jYOrtMRBkbYT31eiBQ8O0ehRKZiEZCMEyLFQNIADpgCWC5fALvYQ==}
@@ -980,7 +983,7 @@ snapshots:
 
   '@soksak/soksak-contract-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/39fe76a56b520f15ba8256620b3b05d89ff34a9d': {}
 
-  '@soksak/soksak-kit-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/9eaa90717d90c6d1fea455bdc013b70e8cf29e82':
+  '@soksak/soksak-kit-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-kit-plugin-terminal/tar.gz/c7605d9a08ecaa202b2ade18ae852987dbb4c090(@soksak/soksak-contract-plugin-terminal@https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/39fe76a56b520f15ba8256620b3b05d89ff34a9d)':
     dependencies:
       '@soksak/soksak-contract-plugin-terminal': https://codeload.github.com/soksak-ai/soksak-contract-plugin-terminal/tar.gz/39fe76a56b520f15ba8256620b3b05d89ff34a9d
 
@@ -993,9 +996,9 @@ snapshots:
 
   '@types/estree@1.0.9': {}
 
-  '@types/node@24.10.0':
+  '@types/node@26.2.0':
     dependencies:
-      undici-types: 7.16.0
+      undici-types: 8.3.0
 
   '@vitest/expect@3.2.4':
     dependencies:
@@ -1005,13 +1008,13 @@ snapshots:
       chai: 5.3.3
       tinyrainbow: 2.0.0
 
-  '@vitest/mocker@3.2.4(vite@7.3.6(@types/node@24.10.0))':
+  '@vitest/mocker@3.2.4(vite@7.3.6(@types/node@26.2.0))':
     dependencies:
       '@vitest/spy': 3.2.4
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 7.3.6(@types/node@24.10.0)
+      vite: 7.3.6(@types/node@26.2.0)
 
   '@vitest/pretty-format@3.2.4':
     dependencies:
@@ -1280,17 +1283,17 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  undici-types@7.16.0: {}
+  undici-types@8.3.0: {}
 
   undici@8.10.0: {}
 
-  vite-node@3.2.4(@types/node@24.10.0):
+  vite-node@3.2.4(@types/node@26.2.0):
     dependencies:
       cac: 6.7.14
       debug: 4.4.3
       es-module-lexer: 1.7.0
       pathe: 2.0.3
-      vite: 7.3.6(@types/node@24.10.0)
+      vite: 7.3.6(@types/node@26.2.0)
     transitivePeerDependencies:
       - '@types/node'
       - jiti
@@ -1305,7 +1308,7 @@ snapshots:
       - tsx
       - yaml
 
-  vite@7.3.6(@types/node@24.10.0):
+  vite@7.3.6(@types/node@26.2.0):
     dependencies:
       esbuild: 0.28.2
       fdir: 6.5.0(picomatch@4.0.5)
@@ -1314,14 +1317,14 @@ snapshots:
       rollup: 4.62.5
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 24.10.0
+      '@types/node': 26.2.0
       fsevents: 2.3.3
 
-  vitest@3.2.4(@types/node@24.10.0)(jsdom@30.0.1):
+  vitest@3.2.4(@types/node@26.2.0)(jsdom@30.0.1):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.4
-      '@vitest/mocker': 3.2.4(vite@7.3.6(@types/node@24.10.0))
+      '@vitest/mocker': 3.2.4(vite@7.3.6(@types/node@26.2.0))
       '@vitest/pretty-format': 3.2.7
       '@vitest/runner': 3.2.4
       '@vitest/snapshot': 3.2.4
@@ -1339,11 +1342,11 @@ snapshots:
       tinyglobby: 0.2.17
       tinypool: 1.1.1
       tinyrainbow: 2.0.0
-      vite: 7.3.6(@types/node@24.10.0)
-      vite-node: 3.2.4(@types/node@24.10.0)
+      vite: 7.3.6(@types/node@26.2.0)
+      vite-node: 3.2.4(@types/node@26.2.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@types/node': 24.10.0
+      '@types/node': 26.2.0
       jsdom: 30.0.1
     transitivePeerDependencies:
       - jiti

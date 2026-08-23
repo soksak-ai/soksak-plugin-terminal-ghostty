@@ -12,8 +12,8 @@ importers:
         specifier: https://github.com/soksak-ai/soksak-contract-plugin-terminal/releases/download/v0.0.5/soksak-contract-plugin-terminal-0.0.5-any.tgz
         version: https://github.com/soksak-ai/soksak-contract-plugin-terminal/releases/download/v0.0.5/soksak-contract-plugin-terminal-0.0.5-any.tgz
       '@soksak/soksak-kit-plugin-terminal':
-        specifier: https://github.com/soksak-ai/soksak-kit-plugin-terminal/releases/download/v0.0.16/soksak-kit-plugin-terminal-0.0.16-any.tgz
-        version: https://github.com/soksak-ai/soksak-kit-plugin-terminal/releases/download/v0.0.16/soksak-kit-plugin-terminal-0.0.16-any.tgz(@soksak/soksak-contract-plugin-terminal@https://github.com/soksak-ai/soksak-contract-plugin-terminal/releases/download/v0.0.5/soksak-contract-plugin-terminal-0.0.5-any.tgz)
+        specifier: https://github.com/soksak-ai/soksak-kit-plugin-terminal/releases/download/v0.0.17/soksak-kit-plugin-terminal-0.0.17-any.tgz
+        version: https://github.com/soksak-ai/soksak-kit-plugin-terminal/releases/download/v0.0.17/soksak-kit-plugin-terminal-0.0.17-any.tgz(@soksak/soksak-contract-plugin-terminal@https://github.com/soksak-ai/soksak-contract-plugin-terminal/releases/download/v0.0.5/soksak-contract-plugin-terminal-0.0.5-any.tgz)
     devDependencies:
       '@types/node':
         specifier: 26.2.0
@@ -399,9 +399,9 @@ packages:
     version: 0.0.5
     engines: {node: 26.7.0}
 
-  '@soksak/soksak-kit-plugin-terminal@https://github.com/soksak-ai/soksak-kit-plugin-terminal/releases/download/v0.0.16/soksak-kit-plugin-terminal-0.0.16-any.tgz':
-    resolution: {integrity: sha512-rlz0RPYeJ4rmfu/WhxlTWsJKX12ViH54My+xrk63zKxMKVuiTMUwYwb+zYnH3X0Osym9bJp1BFNRBSEu2CFHJQ==, tarball: https://github.com/soksak-ai/soksak-kit-plugin-terminal/releases/download/v0.0.16/soksak-kit-plugin-terminal-0.0.16-any.tgz}
-    version: 0.0.16
+  '@soksak/soksak-kit-plugin-terminal@https://github.com/soksak-ai/soksak-kit-plugin-terminal/releases/download/v0.0.17/soksak-kit-plugin-terminal-0.0.17-any.tgz':
+    resolution: {integrity: sha512-mf5F64uyEJh8jLNdqiIiWWF7QkU5FRymB+zyQhaH4EL3MSkKlmuVx56yygPbk4W1fxttLd4xSwb90YsoX1MXbA==, tarball: https://github.com/soksak-ai/soksak-kit-plugin-terminal/releases/download/v0.0.17/soksak-kit-plugin-terminal-0.0.17-any.tgz}
+    version: 0.0.17
     engines: {node: 26.7.0}
     peerDependencies:
       '@soksak/soksak-contract-plugin-terminal': 0.0.5
@@ -984,7 +984,7 @@ snapshots:
 
   '@soksak/soksak-contract-plugin-terminal@https://github.com/soksak-ai/soksak-contract-plugin-terminal/releases/download/v0.0.5/soksak-contract-plugin-terminal-0.0.5-any.tgz': {}
 
-  '@soksak/soksak-kit-plugin-terminal@https://github.com/soksak-ai/soksak-kit-plugin-terminal/releases/download/v0.0.16/soksak-kit-plugin-terminal-0.0.16-any.tgz(@soksak/soksak-contract-plugin-terminal@https://github.com/soksak-ai/soksak-contract-plugin-terminal/releases/download/v0.0.5/soksak-contract-plugin-terminal-0.0.5-any.tgz)':
+  '@soksak/soksak-kit-plugin-terminal@https://github.com/soksak-ai/soksak-kit-plugin-terminal/releases/download/v0.0.17/soksak-kit-plugin-terminal-0.0.17-any.tgz(@soksak/soksak-contract-plugin-terminal@https://github.com/soksak-ai/soksak-contract-plugin-terminal/releases/download/v0.0.5/soksak-contract-plugin-terminal-0.0.5-any.tgz)':
     dependencies:
       '@soksak/soksak-contract-plugin-terminal': https://github.com/soksak-ai/soksak-contract-plugin-terminal/releases/download/v0.0.5/soksak-contract-plugin-terminal-0.0.5-any.tgz
 

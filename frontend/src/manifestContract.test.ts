@@ -7,6 +7,7 @@ describe("terminal plugin manifest contract", () => {
     const manifest = JSON.parse(readFileSync(new URL("../../plugin.json", import.meta.url), "utf8"));
     expect(manifest).not.toHaveProperty("spec");
     expect(manifest.appVersionRequirement).toBe("0.0.1");
+    expect(manifest.permissions).toContain("ui:statusbar");
     expect(manifest.implements).toEqual([TERMINAL_PLUGIN_CONTRACT]);
     expect(manifest.sidecars.map((sidecar: { name: string }) => sidecar.name)).toEqual(["pty", "recovery"]);
     for (const sidecar of manifest.sidecars) {

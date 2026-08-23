@@ -17,11 +17,9 @@ if ("pnpm" in pkg) throw new Error("pnpm 11 settings belong in pnpm-workspace.ya
 for (const obsolete of ["release/dependencies.json", "release/source-dependencies.json"]) {
   if (fs.existsSync(path.join(root, obsolete))) throw new Error(`${obsolete} is obsolete`);
 }
-requireText("release-template/build-release.mjs", "canonical plugin release builder");
-requireText("bin/validate.mjs release", "canonical release validator");
-requireText("--plugin-manifest plugin.json", "plugin conformance manifest");
-requireText("v0.0.22/soksak-ai-plugin-spec-0.0.22.tgz", "immutable spec package");
-requireText("7142e0c4efe28b5a6335b3e192a2d1db2f04518f3d5cf907af23ab05ea74e638", "spec package digest");
+requireText("release-template/verify-plugin-release.mjs", "repeatable owner proof");
+requireText("v0.0.23/soksak-ai-plugin-spec-0.0.23.tgz", "immutable spec package");
+requireText("707f108e69ebd4deac1e5572b9ffb6a5dc8db4953b8948c38a7ac315b189ff1b", "spec package digest");
 if (workflow.includes("repository: soksak-ai/soksak-spec")) throw new Error("release workflow must not checkout spec source");
 requireText("release-template/publish-canonical-release.mjs", "canonical immutable publisher");
 requireText("GH_TOKEN: ${{ steps.release-token.outputs.token }}", "GitHub CLI release token");

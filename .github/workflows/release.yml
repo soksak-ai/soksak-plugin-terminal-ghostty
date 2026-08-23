@@ -20,8 +20,8 @@ jobs:
       - name: Install the immutable public spec package
         run: |
           mkdir -p .dependency/spec-package
-          curl -fsSL https://github.com/soksak-ai/soksak-spec/releases/download/v0.0.22/soksak-ai-plugin-spec-0.0.22.tgz -o .dependency/soksak-spec.tgz
-          echo "7142e0c4efe28b5a6335b3e192a2d1db2f04518f3d5cf907af23ab05ea74e638  .dependency/soksak-spec.tgz" | sha256sum -c -
+          curl -fsSL https://github.com/soksak-ai/soksak-spec/releases/download/v0.0.23/soksak-ai-plugin-spec-0.0.23.tgz -o .dependency/soksak-spec.tgz
+          echo "707f108e69ebd4deac1e5572b9ffb6a5dc8db4953b8948c38a7ac315b189ff1b  .dependency/soksak-spec.tgz" | sha256sum -c -
           tar -xzf .dependency/soksak-spec.tgz -C .dependency/spec-package --strip-components=1
           test -z "$(find .dependency/spec-package -type l -print -quit)"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -30,18 +30,8 @@ jobs:
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
         with:
           package_json_file: soksak-plugins/soksak-plugin-terminal-ghostty/frontend/package.json
-      - name: Verify and build the plugin
-        run: |
-          pnpm --dir frontend install --frozen-lockfile
-          pnpm --dir frontend typecheck
-          pnpm --dir frontend test
-          pnpm --dir frontend build
-          git diff --exit-code -- main.js
-      - name: Build and validate release documents
-        run: |
-          node .dependency/spec-package/release-template/build-release.mjs --commit "${{ github.sha }}" --out dist-release
-          node .dependency/spec-package/bin/validate.mjs release dist-release/release.json
-          node .dependency/spec-package/bin/validate.mjs conformance dist-release/conformance-*.json --release dist-release/release.json --plugin-manifest plugin.json
+      - name: Run the repeatable owner proof
+        run: node .dependency/spec-package/release-template/verify-plugin-release.mjs --commit "${{ github.sha }}" --out dist-release
       - id: release-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:

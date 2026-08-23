@@ -1,6 +1,6 @@
 {
   "id": "soksak-plugin-terminal-ghostty",
-  "name": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "version": "0.0.11",
+  "name": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "version": "0.0.12",
   "appVersionRequirement": "0.0.1",
   "description": { "en": "Terminal view rendered from the ghostty provider frame.", "ko": "Ghostty 공급자 프레임을 렌더링하는 터미널 뷰입니다." },
   "entry": "main.js", "permissions": ["ui", "ui:statusbar", "commands", "programs", "sidecar", "secrets", "terminal"],
@@ -20,8 +20,10 @@
     "programs": [{ "id": "terminal-ghostty", "title": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "kind": "view", "view": "content" }],
     "views": [{ "id": "content", "title": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "icon": "VT", "surfaces": ["tab"], "status": ["connecting", "error"] }]
   },
-  "sidecars": [
-    { "name": "pty", "interface": { "id": "soksak-spec-sidecar-pty", "requirement": "0.0.1" } },
-    { "name": "recovery", "interface": { "id": "soksak-spec-sidecar-terminal", "requirement": "0.0.1" } }
-  ]
+  "runtimeDependencies": {
+    "sidecars": [
+      { "id": "soksak-sidecar-pty", "version": "0.0.6", "url": "https://github.com/soksak-ai/soksak-sidecar-pty/releases/download/v0.0.6/release.json", "size": 2996, "sha256": "32e05911074b381222cbcac6004c76c93e73c9fe967df57b649af5abb5c69c40" },
+      { "id": "soksak-sidecar-terminal-ghostty", "version": "0.0.12", "url": "https://github.com/soksak-ai/soksak-sidecar-terminal-ghostty/releases/download/v0.0.12/release.json", "size": 3216, "sha256": "5483d6a0a096a86d1f209b783cecbc86d3240d73da186b18dcfd70348e1b88f3" }
+    ]
+  }
 }

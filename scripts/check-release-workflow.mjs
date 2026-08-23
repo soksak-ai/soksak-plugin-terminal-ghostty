@@ -10,7 +10,8 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, "frontend/package.json"),
 const requireText = (value, label) => { if (!workflow.includes(value)) throw new Error(`release workflow is missing ${label}: ${value}`); };
 if (typeof manifest.spec === "string" || "schema" in manifest) throw new Error("plugin manifest repeats schema metadata");
 if (manifest.appVersionRequirement !== "0.0.1") throw new Error("plugin app version requirement must be exact 0.0.1");
-if (manifest.sidecars.some((sidecar) => sidecar.interface.requirement !== "0.0.1" || "version" in sidecar.interface)) throw new Error("sidecar consumers must use requirement");
+if (!Array.isArray(manifest.runtimeDependencies?.sidecars) || manifest.runtimeDependencies.sidecars.length !== 2) throw new Error("terminal plugins require two exact Sidecar releases");
+for (const sidecar of manifest.runtimeDependencies.sidecars) if (Object.keys(sidecar).sort().join(",") !== "id,sha256,size,url,version") throw new Error("Sidecar dependencies must use the common release reference");
 if (!/^\d+\.\d+\.\d+$/.test(pkg.engines?.node ?? "") || !/^pnpm@\d+\.\d+\.\d+$/.test(pkg.packageManager ?? "")) throw new Error("release toolchain must be exact");
 if ("pnpm" in pkg) throw new Error("pnpm 11 settings belong in pnpm-workspace.yaml");
 for (const obsolete of ["release/dependencies.json", "release/source-dependencies.json"]) {
@@ -19,8 +20,9 @@ for (const obsolete of ["release/dependencies.json", "release/source-dependencie
 requireText("release-template/build-release.mjs", "canonical plugin release builder");
 requireText("bin/validate.mjs release", "canonical release validator");
 requireText("--plugin-manifest plugin.json", "plugin conformance manifest");
-if (!/^[a-f0-9]{40}$/.test(fs.readFileSync(path.join(root, "soksak-spec.ref"), "utf8").trim())) throw new Error("spec ref must be exact");
-requireText("ref: ${{ steps.spec-ref.outputs.commit }}", "canonical spec ref output");
+requireText("v0.0.22/soksak-ai-plugin-spec-0.0.22.tgz", "immutable spec package");
+requireText("7142e0c4efe28b5a6335b3e192a2d1db2f04518f3d5cf907af23ab05ea74e638", "spec package digest");
+if (workflow.includes("repository: soksak-ai/soksak-spec")) throw new Error("release workflow must not checkout spec source");
 requireText("release-template/publish-canonical-release.mjs", "canonical immutable publisher");
 requireText("GH_TOKEN: ${{ steps.release-token.outputs.token }}", "GitHub CLI release token");
 requireText("node-version-file: soksak-plugins/soksak-plugin-terminal-ghostty/frontend/package.json", "Node owner file");

@@ -9,10 +9,8 @@ describe("terminal plugin manifest contract", () => {
     expect(manifest.appVersionRequirement).toBe("0.0.1");
     expect(manifest.permissions).toContain("ui:statusbar");
     expect(manifest.implements).toEqual([TERMINAL_PLUGIN_CONTRACT]);
-    expect(manifest.sidecars.map((sidecar: { name: string }) => sidecar.name)).toEqual(["pty", "recovery"]);
-    for (const sidecar of manifest.sidecars) {
-      expect(sidecar.interface).toEqual({ id: expect.any(String), requirement: "0.0.1" });
-    }
+    expect(manifest.runtimeDependencies.sidecars.map((sidecar: { id: string }) => sidecar.id)).toEqual(["soksak-sidecar-pty", "soksak-sidecar-terminal-ghostty"]);
+    for (const sidecar of manifest.runtimeDependencies.sidecars) expect(sidecar).toEqual({ id: expect.any(String), version: expect.any(String), url: expect.stringMatching(/release\.json$/), size: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
     expect(validateTerminalPluginManifestCommands(manifest.contributes.commands)).toEqual([]);
   });
 });

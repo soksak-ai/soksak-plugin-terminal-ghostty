@@ -2,28 +2,23 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const workflow = fs.readFileSync(path.join(root, ".github/workflows/release.yml"), "utf8");
-const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin.json"), "utf8"));
-const pkg = JSON.parse(fs.readFileSync(path.join(root, "frontend/package.json"), "utf8"));
-const requireText = (value, label) => { if (!workflow.includes(value)) throw new Error(`release workflow is missing ${label}: ${value}`); };
+const read = (name) => fs.readFileSync(path.join(root, name), "utf8");
+const workflow = read(".github/workflows/release.yml");
+const manifest = JSON.parse(read("plugin.json"));
+const pkg = JSON.parse(read("frontend/package.json"));
+const nodeVersion = read(".node-version").trim();
+const makefile = read("Makefile");
+if (nodeVersion !== pkg.engines.node || !/^pnpm@\d+[.]\d+[.]\d+$/.test(pkg.packageManager)) throw new Error("Node and pnpm owners differ");
+for (const target of ["preflight", "prepare", "build", "verify"]) if (!new RegExp(`^${target}:`, "m").test(makefile)) throw new Error(`Makefile target is missing: ${target}`);
 if (typeof manifest.spec === "string" || "schema" in manifest) throw new Error("plugin manifest repeats schema metadata");
-if (manifest.appVersionRequirement !== "0.0.1") throw new Error("plugin app version requirement must be exact 0.0.1");
-if (!Array.isArray(manifest.runtimeDependencies?.sidecars) || manifest.runtimeDependencies.sidecars.length !== 2) throw new Error("terminal plugins require two exact Sidecar releases");
-for (const sidecar of manifest.runtimeDependencies.sidecars) if (Object.keys(sidecar).sort().join(",") !== "id,sha256,size,url,version") throw new Error("Sidecar dependencies must use the common release reference");
-if (!/^\d+\.\d+\.\d+$/.test(pkg.engines?.node ?? "") || !/^pnpm@\d+\.\d+\.\d+$/.test(pkg.packageManager ?? "")) throw new Error("release toolchain must be exact");
-if ("pnpm" in pkg) throw new Error("pnpm 11 settings belong in pnpm-workspace.yaml");
-for (const obsolete of ["release/dependencies.json", "release/source-dependencies.json"]) {
-  if (fs.existsSync(path.join(root, obsolete))) throw new Error(`${obsolete} is obsolete`);
-}
-requireText("release-template/verify-plugin-release.mjs", "repeatable owner proof");
-requireText("v0.0.23/soksak-ai-plugin-spec-0.0.23.tgz", "immutable spec package");
-requireText("707f108e69ebd4deac1e5572b9ffb6a5dc8db4953b8948c38a7ac315b189ff1b", "spec package digest");
-if (workflow.includes("repository: soksak-ai/soksak-spec")) throw new Error("release workflow must not checkout spec source");
-requireText("release-template/publish-canonical-release.mjs", "canonical immutable publisher");
-requireText("GH_TOKEN: ${{ steps.release-token.outputs.token }}", "GitHub CLI release token");
-requireText("node-version-file: soksak-plugins/soksak-plugin-terminal-ghostty/frontend/package.json", "Node owner file");
-requireText("package_json_file: soksak-plugins/soksak-plugin-terminal-ghostty/frontend/package.json", "pnpm owner file");
-if (workflow.includes("gh release create")) throw new Error("gh release create cannot publish protected immutable tags");
+if (!Array.isArray(manifest.runtimeDependencies?.sidecars) || manifest.runtimeDependencies.sidecars.length !== 2) throw new Error("terminal plugin sidecar closure is incomplete");
+const requireText = (value, label) => { if (!workflow.includes(value)) throw new Error(`workflow is missing ${label}: ${value}`); };
+for (const value of ["spec_url:", "spec_sha256:", "${{ inputs.spec_url }}", "${{ inputs.spec_sha256 }}"]) requireText(value, "release-train input");
+requireText("release-template/verify-plugin-release.mjs", "owner release proof");
+requireText("release-template/publish-canonical-release.mjs", "canonical publisher");
+requireText("node-version-file: soksak-plugins/soksak-plugin-terminal-ghostty/.node-version", "Node owner");
+requireText("package_json_file: soksak-plugins/soksak-plugin-terminal-ghostty/frontend/package.json", "pnpm owner");
+if (workflow.includes("pnpm --dir frontend") || workflow.includes("repository: soksak-ai/soksak-spec") || workflow.includes("gh release create")) throw new Error("workflow bypasses the owner command or immutable package");
+for (const match of workflow.matchAll(/^\s*-?\s*uses:\s*([^\s#]+)/gm)) if (!/^[^@\s]+@[a-f0-9]{40}$/.test(match[1])) throw new Error(`workflow action is not commit-pinned: ${match[1]}`);
 console.log("plugin release workflow contract: passed");

@@ -9,6 +9,8 @@ const manifest = JSON.parse(read("plugin.json"));
 const pkg = JSON.parse(read("frontend/package.json"));
 const nodeVersion = read(".node-version").trim();
 const makefile = read("Makefile");
+const preflight = read("scripts/check-build-environment.sh");
+if (/pnpm_executable|pnpmExecutable/.test(preflight)) throw new Error("preflight must judge the effective repository-selected pnpm");
 if (nodeVersion !== pkg.engines.node || !/^pnpm@\d+[.]\d+[.]\d+$/.test(pkg.packageManager)) throw new Error("Node and pnpm owners differ");
 for (const target of ["preflight", "prepare", "build", "verify"]) if (!new RegExp(`^${target}:`, "m").test(makefile)) throw new Error(`Makefile target is missing: ${target}`);
 if (typeof manifest.spec === "string" || "schema" in manifest) throw new Error("plugin manifest repeats schema metadata");

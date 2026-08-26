@@ -22,8 +22,8 @@
   },
   "runtimeDependencies": {
     "sidecars": [
-      { "id": "soksak-sidecar-pty", "version": "0.0.7", "url": "https://github.com/soksak-ai/soksak-sidecar-pty/releases/download/v0.0.7/release.json", "size": 2996, "sha256": "58e102c1943c4d478a3f5d1d39d19c0dba95b521de76a1fb9205469cd1650c37" },
-      { "id": "soksak-sidecar-terminal-ghostty", "version": "0.0.13", "url": "https://github.com/soksak-ai/soksak-sidecar-terminal-ghostty/releases/download/v0.0.13/release.json", "size": 3216, "sha256": "6b1f93e333b79037e949dd4a367247d207d2068c5670e00df6ab0635a365d2da" }
+      { "id": "soksak-sidecar-pty", "version": "0.0.7" },
+      { "id": "soksak-sidecar-terminal-ghostty", "version": "0.0.13" }
     ]
   }
 }

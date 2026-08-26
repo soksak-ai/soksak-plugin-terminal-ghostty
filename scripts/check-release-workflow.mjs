@@ -17,9 +17,12 @@ if (nodeVersion !== pkg.engines.node || !/^pnpm@\d+[.]\d+[.]\d+$/.test(pkg.packa
 for (const target of ["preflight", "prepare", "build", "verify"]) if (!new RegExp(`^${target}:`, "m").test(makefile)) throw new Error(`Makefile target is missing: ${target}`);
 if (typeof manifest.spec === "string" || "schema" in manifest) throw new Error("plugin manifest repeats schema metadata");
 if (!Array.isArray(manifest.runtimeDependencies?.sidecars) || manifest.runtimeDependencies.sidecars.length !== 2) throw new Error("terminal plugin sidecar closure is incomplete");
+for (const sidecar of manifest.runtimeDependencies.sidecars) if (Object.keys(sidecar).sort().join(",") !== "id,version") throw new Error("Sidecar dependencies declare {id, version} only; size and sha256 belong to the release document");
 const requireText = (value, label) => { if (!workflow.includes(value)) throw new Error(`workflow is missing ${label}: ${value}`); };
 for (const value of ["spec_url:", "spec_sha256:", "${{ inputs.spec_url }}", "${{ inputs.spec_sha256 }}"]) requireText(value, "release-train input");
 requireText("release-template/verify-plugin-release.mjs", "owner release proof");
+// The owner Makefile installs @soksak packages only from a command-line REGISTRY; the proof names the public registry.
+requireText('verify-plugin-release.mjs --commit "${{ github.sha }}" --out dist-release --registry https://registry.npmjs.org/', "owner proof registry");
 requireText("release-template/publish-canonical-release.mjs", "canonical publisher");
 requireText("node-version-file: soksak-plugins/soksak-plugin-terminal-ghostty/.node-version", "Node owner");
 requireText("package_json_file: soksak-plugins/soksak-plugin-terminal-ghostty/frontend/package.json", "pnpm owner");

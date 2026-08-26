@@ -22,8 +22,8 @@
   },
   "runtimeDependencies": {
     "sidecars": [
-      { "id": "soksak-sidecar-pty", "version": "0.0.7" },
-      { "id": "soksak-sidecar-terminal-ghostty", "version": "0.0.13" }
+      { "id": "soksak-sidecar-pty", "version": "0.0.8" },
+      { "id": "soksak-sidecar-terminal-ghostty", "version": "0.0.14" }
     ]
   }
 }

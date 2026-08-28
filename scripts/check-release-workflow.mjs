@@ -14,7 +14,17 @@ const makefile = read("Makefile");
 const preflight = read("scripts/check-build-environment.sh");
 if (/pnpm_executable|pnpmExecutable/.test(preflight)) throw new Error("preflight must judge the effective repository-selected pnpm");
 if (nodeVersion !== pkg.engines.node || !/^pnpm@\d+[.]\d+[.]\d+$/.test(pkg.packageManager)) throw new Error("Node and pnpm owners differ");
-for (const target of ["preflight", "prepare", "build", "verify"]) if (!new RegExp(`^${target}:`, "m").test(makefile)) throw new Error(`Makefile target is missing: ${target}`);
+for (const target of ["preflight", "prepare", "build", "verify", "require-tooling", "require-out", "require-store", "release", "attest"]) {
+  if (!new RegExp(`^${target}:`, "m").test(makefile)) throw new Error(`Makefile target is missing: ${target}`);
+}
+for (const boundary of ["command -v soksak-sdk", "STORE", "OUT", "release.json", "--store"]) {
+  if (!makefile.includes(boundary)) throw new Error(`Makefile release boundary is missing: ${boundary}`);
+}
+if (/SDK_ROOT|SDK_RELEASE|TOOLING_ROOT|TOOLING_RELEASE/.test(makefile)) throw new Error("SDK tooling is selected by PATH, not Make path inputs");
+if (!/^SDK_VERSION := \d+\.\d+\.\d+$/m.test(makefile)) throw new Error("Makefile must declare one exact SDK version");
+for (const check of ["sdk_package_version", "sdk_release_version", "SDK_VERSION"]) {
+  if (!makefile.includes(check)) throw new Error(`Makefile SDK version check is missing: ${check}`);
+}
 if (typeof manifest.spec === "string" || "schema" in manifest) throw new Error("plugin manifest repeats schema metadata");
 if (!Array.isArray(manifest.runtimeDependencies?.sidecars) || manifest.runtimeDependencies.sidecars.length !== 2) throw new Error("terminal plugin sidecar closure is incomplete");
 for (const sidecar of manifest.runtimeDependencies.sidecars) if (Object.keys(sidecar).sort().join(",") !== "id,version") throw new Error("Sidecar dependencies declare {id, version} only; size and sha256 belong to the release document");

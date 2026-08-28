@@ -3,8 +3,8 @@
   "name": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "version": "0.0.27",
   "appVersionRequirement": "0.0.1",
   "description": { "en": "Terminal view rendered from the ghostty provider frame.", "ko": "Ghostty 공급자 프레임을 렌더링하는 터미널 뷰입니다." },
-  "entry": "main.js", "permissions": ["ui", "ui:statusbar", "commands", "programs", "sidecar", "secrets", "terminal"],
-  "implements": [{ "id": "soksak-spec-plugin-terminal", "version": "0.0.10" }],
+  "entry": "main.js", "permissions": ["ui", "ui:statusbar", "commands", "programs", "sidecar", "secrets", "terminal", "clipboard:read", "clipboard:write"],
+  "implements": [{ "id": "soksak-spec-plugin-terminal", "version": "0.0.12" }],
   "contributes": {
     "commands": [
       { "name": "status", "title": { "en": "Terminal status", "ko": "터미널 상태" } },
@@ -26,9 +26,12 @@
       { "name": "pane.title", "title": { "en": "Set a pane title", "ko": "pane 제목 설정" } },
       { "name": "scroll", "title": { "en": "Scroll the screen", "ko": "화면 스크롤" } },
       { "name": "selection", "title": { "en": "Read or copy the selection", "ko": "선택 읽기·복사" } },
+      { "name": "copy", "title": { "en": "Copy the selection", "ko": "선택 복사" } },
+      { "name": "paste", "title": { "en": "Paste terminal input", "ko": "터미널 입력 붙여넣기" }, "danger": "inject" },
+      { "name": "drop", "title": { "en": "Drop files or images", "ko": "파일·이미지 드롭" }, "danger": "inject" },
       { "name": "input.compose", "title": { "en": "Compose input text", "ko": "입력 텍스트 조합" }, "danger": "inject" }
     ],
-    "nodes": [{ "id": "terminal-root" }, { "id": "terminal-screen" }, { "id": "terminal-input" }, { "id": "terminal-restore-status" }],
+    "nodes": [{ "id": "terminal-root" }, { "id": "terminal-screen" }, { "id": "terminal-input" }, { "id": "terminal-drop-target" }, { "id": "terminal-restore-status" }, { "id": "pane" }, { "id": "gutter" }],
     "programs": [{ "id": "terminal-ghostty", "title": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "kind": "view", "view": "content" }],
     "views": [{ "id": "content", "title": { "en": "Ghostty Terminal", "ko": "Ghostty 터미널" }, "icon": "VT", "surfaces": ["tab"], "status": ["connecting", "error"] }]
   },

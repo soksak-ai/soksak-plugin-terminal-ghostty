@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@soksak/soksak-contract-plugin-terminal':
-        specifier: 0.0.8
-        version: 0.0.8
+        specifier: 0.0.10
+        version: 0.0.10
       '@soksak/soksak-kit-plugin-terminal':
-        specifier: 0.0.62
-        version: 0.0.62(@soksak/soksak-contract-plugin-terminal@0.0.8)
+        specifier: 0.0.67
+        version: 0.0.67(@soksak/soksak-contract-plugin-terminal@0.0.10)
     devDependencies:
       '@types/node':
         specifier: 26.2.0
@@ -394,15 +394,15 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@soksak/soksak-contract-plugin-terminal@0.0.8':
-    resolution: {integrity: sha512-BpdR79ybnT67t5+01L9LptUht/WbKeOoKBr8ZQElHOKzOQuE/uztlq8SrlUX8hnSdGkriBlEbmJhNd/OmbituQ==}
+  '@soksak/soksak-contract-plugin-terminal@0.0.10':
+    resolution: {integrity: sha512-WwdTblVel9mDNXMwkxoheJ8O3wDjwr9hb069YMc0rxid/J1nMkql7ZUH7OlO8zmAVfJChJpEyRlj9DLLBpSJHg==}
     engines: {node: 26.7.0}
 
-  '@soksak/soksak-kit-plugin-terminal@0.0.62':
-    resolution: {integrity: sha512-bzvT6KajT/E68cTzYKMRqG20nQLf+SFow5MYw+UikLq+fE+UaAyRDo1MDzb0ADmr1WBIYexIgrNuD3SQqjtd6w==}
+  '@soksak/soksak-kit-plugin-terminal@0.0.67':
+    resolution: {integrity: sha512-u7I7hwIoUwg+R7zoHvER//CyKh5vXuNLYoT2Sp3HKGekF0V9qpVHLI60bFWDI2wfWdzyUq4VlaU4PLxdog5MUw==}
     engines: {node: 26.7.0}
     peerDependencies:
-      '@soksak/soksak-contract-plugin-terminal': 0.0.8
+      '@soksak/soksak-contract-plugin-terminal': 0.0.10
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -980,11 +980,11 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.5':
     optional: true
 
-  '@soksak/soksak-contract-plugin-terminal@0.0.8': {}
+  '@soksak/soksak-contract-plugin-terminal@0.0.10': {}
 
-  '@soksak/soksak-kit-plugin-terminal@0.0.62(@soksak/soksak-contract-plugin-terminal@0.0.8)':
+  '@soksak/soksak-kit-plugin-terminal@0.0.67(@soksak/soksak-contract-plugin-terminal@0.0.10)':
     dependencies:
-      '@soksak/soksak-contract-plugin-terminal': 0.0.8
+      '@soksak/soksak-contract-plugin-terminal': 0.0.10
 
   '@types/chai@5.2.3':
     dependencies:

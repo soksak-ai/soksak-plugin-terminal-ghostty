@@ -22,7 +22,12 @@ store를 읽고 `REGISTRY`에 접속하지 않습니다.
 
 ```sh
 make verify REGISTRY=http://host:port/
+make attest OUT=/absolute/release-output STORE=/absolute/local-release-store REGISTRY=http://host:port/
 ```
+
+로그인 프로필이 설치된 `soksak-sdk` 하나를 `PATH`에서 선택합니다. `SDK_VERSION`은 유일한 요구
+tooling version이며 Make가 설치 package와 release document를 검사합니다. `STORE`는 정확한 미공개
+runtime dependency를 해석하며 SDK나 component source path는 받지 않습니다.
 
 정확한 toolchain 정본은 `.node-version`, `frontend/package.json#engines.node`,
 `frontend/package.json#packageManager`입니다. Make는 frozen install 전에 Node architecture가

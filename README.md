@@ -22,7 +22,12 @@ second install of the same lockfile on the same machine reads the store and neve
 
 ```sh
 make verify REGISTRY=http://host:port/
+make attest OUT=/absolute/release-output STORE=/absolute/local-release-store REGISTRY=http://host:port/
 ```
+
+The login profile selects one installed `soksak-sdk` on `PATH`. `SDK_VERSION` is the single
+required tooling version and Make checks the installed package and release documents. `STORE`
+resolves exact unpublished runtime dependencies; no SDK or component source path is accepted.
 
 `.node-version`, `frontend/package.json#engines.node`, and
 `frontend/package.json#packageManager` are the exact toolchain owners. Make rejects a mismatched

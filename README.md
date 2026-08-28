@@ -20,7 +20,12 @@ The build input is identified by the `pnpm-lock.yaml` integrity, not by `REGISTR
 `REGISTRY` only a package whose integrity its content-addressable store does not already hold, so a
 second install of the same lockfile on the same machine reads the store and never contacts `REGISTRY`.
 
+`make lock` is the only owner operation that regenerates `frontend/pnpm-lock.yaml` after an exact
+dependency declaration changes. It updates the lock without materializing packages; normal builds
+continue to install the frozen state through `make prepare`.
+
 ```sh
+make lock REGISTRY=http://host:port/
 make verify REGISTRY=http://host:port/
 make attest OUT=/absolute/release-output STORE=/absolute/local-release-store REGISTRY=http://host:port/
 ```
